@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // -------------------------------------------------------------------------
+    // MASTER PRIMITIVES
+    // -------------------------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function emailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidCookbook(data) {
+      return data.keys().hasAll(['id', 'title', 'price', 'category']) &&
+             data.id is string && isValidId(data.id) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.price is number && data.price >= 0 &&
+             data.category in ['high-protein', 'vegetarian', 'air-fryer'];
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasAll(['id', 'title', 'date', 'month', 'time']) &&
+             data.id is string && isValidId(data.id) &&
+             data.title is string && data.title.size() <= 200;
+    }
+
+    function isValidDietPlan(data) {
+      return data.keys().hasAll(['id', 'title', 'price', 'period']) &&
+             data.id is string && isValidId(data.id) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.price is number && data.price >= 0;
+    }
+
+    function isValidSubscriber(data) {
+      return data.keys().hasAll(['id', 'email', 'date', 'status']) &&
+             data.id is string && isValidId(data.id) &&
+             data.email is string && data.email.size() <= 254 &&
+             data.status in ['Active', 'Unsubscribed'];
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // ADMINS COLLECTION
+    // -------------------------------------------------------------------------
+    match /admins/{userId} {
+      // Users can see their own admin status
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      
+      // Allow bootstrap for primary admins (matching authorized emails in App.tsx)
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+                    (request.auth.token.email.lower() == 'sakethkrishna.work@gmail.com' ||
+                     request.auth.token.email.lower() == 'gokulkannan0205@gmail.com');
+
+      // Admins can manage other admins
+      allow update, delete: if isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // COOKBOOKS COLLECTION
+    // -------------------------------------------------------------------------
+    match /cookbooks/{bookId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(bookId) && isValidCookbook(request.resource.data);
+    }
+
+    // -------------------------------------------------------------------------
+    // DIET PLANS COLLECTION
+    // -------------------------------------------------------------------------
+    match /dietPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(planId) && isValidDietPlan(request.resource.data);
+    }
+
+    // -------------------------------------------------------------------------
+    // EVENTS COLLECTION
+    // -------------------------------------------------------------------------
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(eventId) && isValidEvent(request.resource.data);
+    }
+
+    // -------------------------------------------------------------------------
+    // SUBSCRIBERS COLLECTION
+    // -------------------------------------------------------------------------
+    match /subscribers/{subId} {
+      // Anyone can subscribe (e.g. newsletter)
+      allow create: if isValidSubscriber(request.resource.data); 
+      // Only admins can view or manage the mailing list
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

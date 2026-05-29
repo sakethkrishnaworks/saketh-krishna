@@ -1,0 +1,6 @@
+{
+  "name": "Saketh Krishna",
+  "description": "A luxury cinematic wellness platform featuring gourmet healthy recipes, cookbooks, and strategic 1:1 coaching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

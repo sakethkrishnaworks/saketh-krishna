@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "Cookbook": {
+      "title": "Cookbook",
+      "description": "A digital recipe asset available for purchase",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "oldPrice": { "type": "number" },
+        "image": { "type": "string" },
+        "category": { "type": "string", "enum": ["high-protein", "vegetarian", "air-fryer"] },
+        "tag": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "title", "price", "category"]
+    },
+    "Event": {
+      "title": "Coaching Event",
+      "description": "A scheduled coaching session or workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string" },
+        "month": { "type": "string" },
+        "time": { "type": "string" },
+        "tag": { "type": "string" },
+        "image": { "type": "string" },
+        "joined": { "type": "number" },
+        "tagColor": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "month", "time"]
+    },
+    "Subscriber": {
+      "title": "Newsletter Subscriber",
+      "description": "A lead captured through the website",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Unsubscribed"] }
+      },
+      "required": ["id", "email", "date", "status"]
+    },
+    "Admin": {
+      "title": "Administrator",
+      "description": "A user with privileged access to the management portal",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["uid", "role"]
+    },
+    "DietPlan": {
+      "title": "Diet Plan",
+      "description": "A recurring nutrition and coaching plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "period": { "type": "string" },
+        "image": { "type": "string" },
+        "badge": { "type": "string" },
+        "popular": { "type": "boolean" }
+      },
+      "required": ["id", "title", "price", "period"]
+    }
+  },
+  "firestore": {
+    "cookbooks": {
+      "schema": "Cookbook",
+      "description": "Catalog of digital cookbooks"
+    },
+    "dietPlans": {
+      "schema": "DietPlan",
+      "description": "Subscription-based diet and coaching plans"
+    },
+    "events": {
+      "schema": "Event",
+      "description": "Scheduled coaching sessions"
+    },
+    "subscribers": {
+      "schema": "Subscriber",
+      "description": "Newsletter mailing list"
+    },
+    "admins": {
+      "schema": "Admin",
+      "description": "List of authorized administrators"
+    }
+  }
+}
