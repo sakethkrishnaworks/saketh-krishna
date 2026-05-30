@@ -1,10 +1,9 @@
 {
-  "projectId": "onyx-antler-dlsxp",
-  "appId": "1:108354776950:web:bfc406fa4262140899d457",
-  "apiKey": "AIzaSyCCof5MtKDLJY8salJWVTknbWCH-bq7tFE",
-  "authDomain": "onyx-antler-dlsxp.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-2a796e22-e6c0-477b-98c4-159eba85b3d3",
-  "storageBucket": "onyx-antler-dlsxp.firebasestorage.app",
-  "messagingSenderId": "108354776950",
-  "measurementId": ""
+  "apiKey": "AIzaSyAFhX7iBHwWzXkF_3fGwvPfOxgDSOhrxb4",
+  "authDomain": "skworks.firebaseapp.com",
+  "projectId": "skworks",
+  "storageBucket": "skworks.firebasestorage.app",
+  "messagingSenderId": "116621569624",
+  "appId": "1:116621569624:web:149e6c36e34f12b0cce42d",
+  "measurementId": "G-7MEKQNCLCT"
 }
