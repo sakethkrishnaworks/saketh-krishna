@@ -6,11 +6,14 @@ import { EventSession, DietPlan } from '../types';
 interface CoachingViewProps {
   events: EventSession[];
   dietPlans: DietPlan[];
+  isSignedIn: boolean;
+  onLogin: () => void;
 }
 
-export default function CoachingView({ events, dietPlans }: CoachingViewProps) {
+export default function CoachingView({ events, dietPlans, isSignedIn, onLogin }: CoachingViewProps) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
+  const [authPrompt, setAuthPrompt] = useState<string>('');
   const [transformationUser, setTransformationUser] = useState<'marcus' | 'elena'>('marcus');
   const [transformationSlider, setTransformationSlider] = useState<number>(50); // 0-100 percentage layout slider
 
@@ -38,12 +41,24 @@ export default function CoachingView({ events, dietPlans }: CoachingViewProps) {
   ];
 
   const handleRSVP = (eventId: string) => {
+    if (!isSignedIn) {
+      setAuthPrompt('Please sign in with Google to join coaching calls.');
+      onLogin();
+      return;
+    }
+
     if (bookedSessions.includes(eventId)) return;
     setBookedSessions([...bookedSessions, eventId]);
   };
 
   const handleBookingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSignedIn) {
+      setAuthPrompt('Please sign in with Google to book a coaching session.');
+      onLogin();
+      return;
+    }
+
     if (!bookingDate || !bookingTime || !bookingName || !bookingEmail) return;
 
     setIsBookingSubmitting(true);
@@ -59,6 +74,18 @@ export default function CoachingView({ events, dietPlans }: CoachingViewProps) {
     setBookingTime('');
     setBookingName('');
     setBookingEmail('');
+  };
+
+  const handleSelectPlan = (planTitle: string) => {
+    if (!isSignedIn) {
+      setAuthPrompt('Please sign in with Google to select a coaching plan.');
+      onLogin();
+      return;
+    }
+
+    setSelectedPlan(planTitle);
+    const el = document.getElementById('scheduler-module');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -139,19 +166,14 @@ export default function CoachingView({ events, dietPlans }: CoachingViewProps) {
                   </div>
 
                   <button
-                    onClick={() => {
-                      setSelectedPlan(plan.title);
-                      // Scroll beautifully down to booking module
-                      const el = document.getElementById('scheduler-module');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
+                    onClick={() => handleSelectPlan(plan.title)}
                     className={`w-full py-3.5 rounded cursor-pointer font-sans font-bold tracking-widest text-[10px] uppercase transition-colors ${
                       plan.popular
                         ? 'bg-[#D2B48C] text-[#402d10] hover:bg-[#feddb3]'
                         : 'bg-[#20201f] text-[#e5e2e1] hover:bg-white/5 border border-[#e5e2e1]/15 hover:border-[#D2B48C]/50'
                     }`}
                   >
-                    Select Plan
+                    {isSignedIn ? 'Select Plan' : 'Sign In To Select'}
                   </button>
                 </div>
               </div>
@@ -460,6 +482,19 @@ export default function CoachingView({ events, dietPlans }: CoachingViewProps) {
             {/* Custom Interactive Booking form (cols-7) */}
             <div className="lg:col-span-7">
               <div className="glass-panel border border-[#D2B48C]/15 rounded-2xl p-8 md:p-10 relative">
+                {!isSignedIn && (
+                  <div className="mb-6 rounded-lg border border-[#D2B48C]/25 bg-[#D2B48C]/10 px-5 py-4 text-center md:text-left">
+                    <p className="font-sans text-xs text-[#D2B48C] uppercase tracking-wider">
+                      {authPrompt || 'Sign in with Google to book coaching sessions and join calls.'}
+                    </p>
+                    <button
+                      onClick={onLogin}
+                      className="mt-3 rounded bg-[#D2B48C] px-5 py-2 text-[10px] font-sans font-bold uppercase tracking-widest text-[#402d10] hover:bg-[#feddb3]"
+                    >
+                      Sign In With Google
+                    </button>
+                  </div>
+                )}
                 
                 {isBookingSuccess ? (
                   <div className="text-center py-10 space-y-6">

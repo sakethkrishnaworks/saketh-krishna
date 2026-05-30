@@ -107,7 +107,7 @@ export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
                 THE VISIONARY
               </span>
               <h3 className="font-serif text-3xl sm:text-4xl md:text-5xl text-[#e5e2e1] mb-6 leading-[1.2] font-semibold">
-                Meet Saketh: The Young Telugu Chef redefining Indian fitness food.
+                Meet Saketh: The Young Chef redefining Indian fitness food.
               </h3>
               <p className="font-sans text-base md:text-lg text-[#c4c7c7] leading-[1.6] mb-8 font-light max-w-2xl">
                 Bridging the gap between traditional flavors and modern nutrition, Saketh has pioneered a lifestyle approach where gourmet dining meets rigorous fat-loss science. His methods aren't just about recipes; they are about elevating the human experience through conscious consumption.

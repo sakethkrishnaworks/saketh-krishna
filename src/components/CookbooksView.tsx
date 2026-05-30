@@ -7,13 +7,16 @@ interface CookbooksViewProps {
   cookbooks: Cookbook[];
   onAddToCart: (cookbook: Cookbook) => void;
   onSubscribe: (email: string) => void;
+  isSignedIn: boolean;
+  onLogin: () => void;
 }
 
-export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: CookbooksViewProps) {
+export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isSignedIn, onLogin }: CookbooksViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [subscribedEmail, setSubscribedEmail] = useState<string>('');
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
   const [successAnimationItem, setSuccessAnimationItem] = useState<string | null>(null);
+  const [authPrompt, setAuthPrompt] = useState<string>('');
 
   const categories = [
     { id: 'all', label: 'All Collections' },
@@ -38,6 +41,12 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: C
   };
 
   const triggerAddToCart = (book: Cookbook) => {
+    if (!isSignedIn) {
+      setAuthPrompt('Please sign in with Google to buy cookbooks.');
+      onLogin();
+      return;
+    }
+
     onAddToCart(book);
     setSuccessAnimationItem(book.id);
     setTimeout(() => {
@@ -74,6 +83,11 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: C
             <p className="font-sans text-base md:text-lg text-[#c4c7c7] font-light max-w-lg leading-relaxed">
               Elevated digital cookbooks and macro guides designed for the modern high-performer. Experience the quiet luxury of high-protein performance cooking.
             </p>
+            {!isSignedIn && (
+              <p className="font-sans text-xs text-[#D2B48C] tracking-widest uppercase">
+                Sign in with Google to purchase cookbooks.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -81,6 +95,12 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: C
       {/* Grid Filtering Controls */}
       <section className="py-16 md:py-24 px-6 md:px-16 max-w-7xl mx-auto space-y-16">
         <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-4 scrollbar-thin">
+          {authPrompt && (
+            <div className="w-full rounded-lg border border-[#D2B48C]/25 bg-[#D2B48C]/10 px-5 py-3 text-xs font-sans text-[#D2B48C] uppercase tracking-wider">
+              {authPrompt}
+            </div>
+          )}
+
           {categories.map((cat) => (
             <button
               key={cat.id}
@@ -218,7 +238,7 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: C
                           : 'bg-[#121212]/80 text-[#e5e2e1] border-[#e5e2e1]/20 hover:bg-[#D2B48C] hover:text-[#402d10] hover:border-[#D2B48C]'
                       }`}
                     >
-                      {successAnimationItem === airFryerBook.id ? 'ADDED ✓' : 'ADD TO CART'}
+                      {successAnimationItem === airFryerBook.id ? 'ADDED ✓' : isSignedIn ? 'ADD TO CART' : 'SIGN IN TO BUY'}
                     </button>
                   </div>
                 </div>
@@ -274,7 +294,7 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe }: C
                         <>ADDED ✓</>
                       ) : (
                         <>
-                          Buy Now ₹{mealPrepBook.price.toLocaleString('en-IN')} <ArrowRight className="w-3.5 h-3.5" />
+                          {isSignedIn ? `Buy Now ₹${mealPrepBook.price.toLocaleString('en-IN')}` : 'Sign in to buy'} <ArrowRight className="w-3.5 h-3.5" />
                         </>
                       )}
                     </button>

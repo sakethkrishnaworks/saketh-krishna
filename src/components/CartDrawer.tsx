@@ -9,6 +9,8 @@ interface CartDrawerProps {
   onUpdateQuantity: (id: string, delta: number) => void;
   onRemoveItem: (id: string) => void;
   onClearCart: () => void;
+  isSignedIn: boolean;
+  onLogin: () => void;
 }
 
 export default function CartDrawer({
@@ -18,6 +20,8 @@ export default function CartDrawer({
   onUpdateQuantity,
   onRemoveItem,
   onClearCart,
+  isSignedIn,
+  onLogin,
 }: CartDrawerProps) {
   const [promoCode, setPromoCode] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
@@ -52,6 +56,10 @@ export default function CartDrawer({
 
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
+    if (!isSignedIn) {
+      onLogin();
+      return;
+    }
 
     setIsProcessingCheckout(true);
     setTimeout(() => {
@@ -304,7 +312,7 @@ export default function CartDrawer({
               id="checkout-btn"
             >
               <CreditCard className="w-4 h-4" />
-              <span>{isProcessingCheckout ? 'PROCESSING TRANSACTIONS...' : 'PROCEED SECURE CHECKOUT'}</span>
+              <span>{isProcessingCheckout ? 'PROCESSING TRANSACTIONS...' : isSignedIn ? 'PROCEED SECURE CHECKOUT' : 'SIGN IN TO CHECKOUT'}</span>
             </button>
           </div>
         )}

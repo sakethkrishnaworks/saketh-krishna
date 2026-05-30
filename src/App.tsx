@@ -130,6 +130,11 @@ export default function App() {
   };
 
   const handleAddToCart = (cookbook: Cookbook) => {
+    if (!user) {
+      handleLogin();
+      return;
+    }
+
     const existingIndex = cartItems.findIndex(item => item.cookbook.id === cookbook.id);
     let updatedCart: CartItem[];
 
@@ -240,10 +245,17 @@ export default function App() {
             cookbooks={cookbooks}
             onAddToCart={handleAddToCart}
             onSubscribe={handleSubscribe}
+            isSignedIn={Boolean(user)}
+            onLogin={handleLogin}
           />
         )}
         {activeTab === 'coaching' && (
-          <CoachingView events={events} dietPlans={dietPlans} />
+          <CoachingView
+            events={events}
+            dietPlans={dietPlans}
+            isSignedIn={Boolean(user)}
+            onLogin={handleLogin}
+          />
         )}
         {activeTab === 'admin' && (
           isAdmin ? (
@@ -297,6 +309,8 @@ export default function App() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onClearCart={handleClearCart}
+        isSignedIn={Boolean(user)}
+        onLogin={handleLogin}
       />
     </div>
   );
