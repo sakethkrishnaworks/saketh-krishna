@@ -88,10 +88,10 @@ export default function CartDrawer({
       />
 
       {/* Slide-out Sidebar container */}
-      <div className="relative w-full max-w-md bg-[#121212] border-l border-[#e5e2e1]/10 h-full flex flex-col justify-between shadow-2xl z-10 transition-all duration-500">
+      <div className="relative w-full max-w-md bg-[#121212] border-l border-[#e5e2e1]/10 h-dvh flex flex-col justify-between shadow-2xl z-10 transition-all duration-500">
         
         {/* Header Action row */}
-        <div className="flex justify-between items-center px-6 md:px-8 py-6 border-b border-[#e5e2e1]/10 uppercase bg-[#0e0e0e]">
+        <div className="flex justify-between items-center px-5 md:px-8 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5 border-b border-[#e5e2e1]/10 uppercase bg-[#0e0e0e]">
           <div className="flex items-center gap-2">
             <span className="font-serif text-lg text-white font-semibold tracking-wider">YOUR CULINARY BAG</span>
             <span className="font-mono text-xs text-[#D2B48C]">({cartItems.length})</span>
@@ -107,7 +107,7 @@ export default function CartDrawer({
         </div>
 
         {/* Scrollable Contents viewport */}
-        <div className="flex-grow overflow-y-auto px-6 md:px-8 py-6 space-y-6">
+        <div className="flex-grow overflow-y-auto px-5 md:px-8 py-6 space-y-6">
           {isCheckoutSuccess ? (
             /* Checkout Success screen display content */
             <div className="text-center py-8 space-y-6 animate-fade-in">
@@ -182,17 +182,17 @@ export default function CartDrawer({
               {cartItems.map((item) => (
                 <div
                   key={item.cookbook.id}
-                  className="flex items-center gap-4 bg-[#1b1b1b] border border-white/5 rounded-xl p-4 hover:border-[#D2B48C]/15 transition-all"
+                  className="flex items-center gap-3 sm:gap-4 bg-[#1b1b1b] border border-white/5 rounded-xl p-3 sm:p-4 hover:border-[#D2B48C]/15 transition-all"
                 >
                   {/* Thumbnail cover thumbnail */}
-                  <div className="w-20 h-20 bg-zinc-900 rounded overflow-hidden flex-shrink-0 relative">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-900 rounded overflow-hidden flex-shrink-0 relative">
                     <img src={item.cookbook.image} alt={item.cookbook.title} className="w-full h-full object-cover" />
                   </div>
 
                   {/* Title & Quantity adjustments */}
                   <div className="flex-grow space-y-2">
                     <div className="flex justify-between items-start gap-2">
-                      <h4 className="font-serif text-sm font-semibold text-white leading-tight line-clamp-1">{item.cookbook.title}</h4>
+                      <h4 className="font-serif text-sm font-semibold text-white leading-tight line-clamp-2">{item.cookbook.title}</h4>
                       <button
                         onClick={() => onRemoveItem(item.cookbook.id)}
                         className="text-white/40 hover:text-red-400 p-1 rounded transition-colors cursor-pointer"
@@ -280,7 +280,7 @@ export default function CartDrawer({
 
         {/* Pricing Subtotals & Check Out Button drawer bottom (only shown if not success) */}
         {!isCheckoutSuccess && cartItems.length > 0 && (
-          <div className="bg-[#0e0e0e] border-t border-[#e5e2e1]/10 p-6 md:p-8 space-y-6">
+          <div className="bg-[#0e0e0e] border-t border-[#e5e2e1]/10 px-5 md:px-8 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] space-y-6">
             <div className="space-y-2 text-xs font-sans">
               <div className="flex justify-between text-[#c4c7c7]/60">
                 <span>SUBTOTAL:</span>

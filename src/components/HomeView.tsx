@@ -12,7 +12,7 @@ export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
   return (
     <div className="relative">
       {/* Cinematic Hero Segment */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-svh flex items-center justify-center overflow-hidden">
         {/* Immersive Dark Food Backdrop with subtle overlay */}
         <div className="absolute inset-0 z-0">
           <img
@@ -37,16 +37,16 @@ export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
               Elevated Living.
             </h2>
 
-            <div className="flex flex-col sm:flex-row gap-5 mt-4 min-w-[220px]">
+            <div className="flex flex-col sm:flex-row gap-5 mt-4 w-full max-w-xs sm:max-w-none sm:w-auto">
               <button
                 onClick={() => onNavigate('cookbooks')}
-                className="px-10 py-4 bg-[#D2B48C] hover:bg-[#feddb3] text-[#402d10] font-sans font-bold tracking-widest text-xs uppercase cursor-pointer rounded shadow-xl transition-all hover:scale-[1.03] active:scale-[0.98]"
+                className="w-full sm:w-auto px-10 py-4 bg-[#D2B48C] hover:bg-[#feddb3] text-[#402d10] font-sans font-bold tracking-widest text-xs uppercase cursor-pointer rounded shadow-xl transition-all hover:scale-[1.03] active:scale-[0.98]"
               >
                 Buy Cookbooks
               </button>
               <button
                 onClick={() => onNavigate('coaching')}
-                className="px-10 py-4 border border-[#e5e2e1]/30 hover:border-[#D2B48C] hover:bg-white/5 text-[#e5e2e1] font-sans tracking-widest text-xs uppercase cursor-pointer rounded transition-all hover:scale-[1.03]"
+                className="w-full sm:w-auto px-10 py-4 border border-[#e5e2e1]/30 hover:border-[#D2B48C] hover:bg-white/5 text-[#e5e2e1] font-sans tracking-widest text-xs uppercase cursor-pointer rounded transition-all hover:scale-[1.03]"
               >
                 Start Coaching
               </button>

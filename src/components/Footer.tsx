@@ -80,16 +80,16 @@ export default function Footer({ onNavigate, onSubscribe }: FooterProps) {
             {isSubscribed ? (
               <p className="text-xs text-emerald-400 font-sans">Strategic updates are on their way. Welcome to the collective.</p>
             ) : (
-              <form onSubmit={handleSubscribe} className="flex gap-2">
+              <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="EMAIL@DOMAIN.COM"
-                  className="bg-[#131313] border border-white/10 rounded px-4 py-2 text-[10px] tracking-widest text-white focus:outline-none focus:border-[#D2B48C] flex-grow"
+                  className="bg-[#131313] border border-white/10 rounded px-4 py-3 sm:py-2 text-[10px] tracking-widest text-white focus:outline-none focus:border-[#D2B48C] flex-grow min-w-0"
                   required
                 />
-                <button type="submit" className="bg-[#D2B48C] text-[#402d10] px-4 py-2 rounded font-sans text-[10px] font-bold tracking-widest uppercase hover:bg-[#feddb3] transition-colors">
+                <button type="submit" className="bg-[#D2B48C] text-[#402d10] px-4 py-3 sm:py-2 rounded font-sans text-[10px] font-bold tracking-widest uppercase hover:bg-[#feddb3] transition-colors">
                   JOIN
                 </button>
               </form>
@@ -100,7 +100,7 @@ export default function Footer({ onNavigate, onSubscribe }: FooterProps) {
             <span className="font-sans text-[10px] tracking-widest text-[#D2B48C] font-semibold block uppercase">
               SOCIAL CHANNELS
             </span>
-            <div className="flex gap-4 pt-2">
+            <div className="flex flex-wrap gap-4 pt-2">
               <a
                 href="https://instagram.com"
                 target="_blank"

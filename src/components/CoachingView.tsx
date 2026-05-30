@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, Phone, Mail, Clock, ArrowRight, UserCheck, Star, Users, CheckCircle, Video } from 'lucide-react';
 import { DIET_PLANS, TESTIMONIALS_DATA, ASSET_IMAGES } from '../data';
 import { EventSession, DietPlan } from '../types';
@@ -8,9 +8,11 @@ interface CoachingViewProps {
   dietPlans: DietPlan[];
   isSignedIn: boolean;
   onLogin: () => void;
+  userName: string;
+  userEmail: string;
 }
 
-export default function CoachingView({ events, dietPlans, isSignedIn, onLogin }: CoachingViewProps) {
+export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, userName, userEmail }: CoachingViewProps) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
   const [authPrompt, setAuthPrompt] = useState<string>('');
@@ -39,6 +41,11 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin }:
     '02:00 PM EST',
     '04:30 PM EST',
   ];
+
+  useEffect(() => {
+    if (!bookingName && userName) setBookingName(userName);
+    if (!bookingEmail && userEmail) setBookingEmail(userEmail);
+  }, [bookingEmail, bookingName, userEmail, userName]);
 
   const handleRSVP = (eventId: string) => {
     if (!isSignedIn) {

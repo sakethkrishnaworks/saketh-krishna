@@ -47,10 +47,10 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
       >
         <div className="flex justify-between items-center w-full px-6 md:px-16 max-w-7xl mx-auto">
           {/* Menu Button / Mobile Toggle & Brand */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6 min-w-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="text-[#c8c6c5] hover:text-[#D2B48C] transition-colors focus:outline-none"
+              className="text-[#c8c6c5] hover:text-[#D2B48C] transition-colors focus:outline-none min-h-11 min-w-11 flex items-center justify-center -ml-2"
               aria-label="Open navigation menu"
               id="menu-toggle-btn"
             >
@@ -61,7 +61,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
                 setActiveTab('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="font-serif text-lg md:text-xl tracking-[0.25em] text-[#e5e2e1] hover:text-[#D2B48C] cursor-pointer selection:bg-none transition-colors select-none uppercase font-bold"
+              className="font-serif text-sm sm:text-lg md:text-xl tracking-[0.16em] sm:tracking-[0.25em] text-[#e5e2e1] hover:text-[#D2B48C] cursor-pointer selection:bg-none transition-colors select-none uppercase font-bold truncate"
               id="brand-logo"
             >
               SAKETH KRISHNA
@@ -89,7 +89,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
           </nav>
 
           {/* User Auth & Shopping Cart Indicator */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <div className="hidden md:flex items-center gap-4">
               {user ? (
                 <div className="flex items-center gap-3">
@@ -120,7 +120,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
 
             <button
               onClick={onOpenCart}
-              className="relative text-[#c8c6c5] hover:text-[#D2B48C] transition-all p-1 group focus:outline-none"
+              className="relative text-[#c8c6c5] hover:text-[#D2B48C] transition-all p-1 group focus:outline-none min-h-11 min-w-11 flex items-center justify-center"
               aria-label="View shopping cart"
               id="cart-trigger-btn"
             >
@@ -145,7 +145,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
           />
 
           {/* Sliding Content Container */}
-          <div className="relative w-full max-w-md bg-[#121212] border-r border-[#e5e2e1]/10 h-full p-8 md:p-12 flex flex-col justify-between z-10 shadow-2xl transition-transform duration-500 ease-out">
+          <div className="relative w-full max-w-md bg-[#121212] border-r border-[#e5e2e1]/10 h-dvh overflow-y-auto p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:p-12 flex flex-col justify-between z-10 shadow-2xl transition-transform duration-500 ease-out">
             <div className="space-y-12">
               <div className="flex justify-between items-center">
                 <span className="font-serif text-sm tracking-[0.2em] text-[#D2B48C]">NAVIGATION MENU</span>
@@ -189,7 +189,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
                         </div>
                         <div>
                           <p className="font-serif text-lg text-white">{isAdmin ? 'Executive Access' : 'Loyalty Member'}</p>
-                          <p className="font-sans text-xs text-white/40">{user.email}</p>
+                          <p className="font-sans text-xs text-white/40 break-all">{user.email}</p>
                         </div>
                       </div>
                       <button 
@@ -215,7 +215,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
             {/* Social Channels inside Mobile Drawer */}
             <div className="border-t border-[#e5e2e1]/10 pt-8 space-y-4">
               <p className="font-sans text-xs tracking-widest text-[#e5e2e1]/40 uppercase">FOLLOW SAKETH</p>
-              <div className="flex gap-6">
+              <div className="flex flex-wrap gap-6">
                 <a
                   href="https://instagram.com"
                   target="_blank"

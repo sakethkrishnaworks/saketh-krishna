@@ -12,7 +12,14 @@ import CartDrawer from './components/CartDrawer';
 import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan } from './types';
 import { COOKBOOKS_DATA, EVENTS_DATA, DIET_PLANS } from './data';
 import { auth, db, googleProvider, testFirebaseConnection } from './lib/firebase';
-import { getRedirectResult, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  getRedirectResult,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+} from 'firebase/auth';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -30,11 +37,15 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isStoryOpen, setIsStoryOpen] = useState<boolean>(false);
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
 
   useEffect(() => {
-    getRedirectResult(auth).catch((err) => {
-      console.error('Google redirect sign-in failed:', err);
-    });
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => getRedirectResult(auth))
+      .catch((err) => {
+        console.error('Google redirect sign-in failed:', err);
+      });
   }, []);
 
   // Check Admin Status and Bootstrap primary user
@@ -189,29 +200,46 @@ export default function App() {
   };
 
   const handleLogin = async () => {
+    if (isSigningIn) return;
+
     const isMobileBrowser =
       typeof window !== 'undefined' &&
-      window.matchMedia('(pointer: coarse)').matches;
+      (window.matchMedia('(pointer: coarse)').matches ||
+        window.matchMedia('(max-width: 767px)').matches);
 
+    setAuthError('');
+    setIsSigningIn(true);
     try {
       if (isMobileBrowser) {
         await signInWithRedirect(auth, googleProvider);
         return;
       }
 
+      await setPersistence(auth, browserLocalPersistence);
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       if (
-        err?.code === 'auth/popup-blocked' ||
-        err?.code === 'auth/popup-closed-by-user' ||
-        err?.code === 'auth/cancelled-popup-request' ||
-        err?.code === 'auth/operation-not-supported-in-this-environment'
+        !isMobileBrowser &&
+        (
+          err?.code === 'auth/popup-blocked' ||
+          err?.code === 'auth/popup-closed-by-user' ||
+          err?.code === 'auth/cancelled-popup-request' ||
+          err?.code === 'auth/operation-not-supported-in-this-environment'
+        )
       ) {
         await signInWithRedirect(auth, googleProvider);
         return;
       }
 
       console.error('Google sign-in failed:', err);
+      const message =
+        err?.code === 'auth/unauthorized-domain'
+          ? `Google sign-in is blocked because this domain is not authorized in Firebase: ${window.location.hostname}`
+          : err?.message || 'Google sign-in failed. Please try again.';
+      setAuthError(message);
+      if (isMobileBrowser) window.alert(message);
+    } finally {
+      setIsSigningIn(false);
     }
   };
   const handleLogout = () => signOut(auth);
@@ -231,6 +259,12 @@ export default function App() {
         onLogout={handleLogout}
         isAdmin={isAdmin}
       />
+
+      {authError && (
+        <div className="fixed left-4 right-4 top-24 z-[120] rounded-lg border border-red-400/30 bg-red-950/90 px-4 py-3 text-sm text-red-100 shadow-xl backdrop-blur-md">
+          {authError}
+        </div>
+      )}
 
       {/* Main viewport segment (with elegant screen switcher) */}
       <main className="flex-grow">
@@ -255,6 +289,8 @@ export default function App() {
             dietPlans={dietPlans}
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
+            userName={user?.displayName || ''}
+            userEmail={user?.email || ''}
           />
         )}
         {activeTab === 'admin' && (
