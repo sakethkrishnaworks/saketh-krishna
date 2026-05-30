@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import HomeView from './components/HomeView';
@@ -10,7 +12,7 @@ import CartDrawer from './components/CartDrawer';
 import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan } from './types';
 import { COOKBOOKS_DATA, EVENTS_DATA, DIET_PLANS } from './data';
 import { auth, db, googleProvider, testFirebaseConnection } from './lib/firebase';
-import { signInWithPopup, signOut } from 'firebase/auth';
+import { getRedirectResult, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -28,6 +30,12 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isStoryOpen, setIsStoryOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    getRedirectResult(auth).catch((err) => {
+      console.error('Google redirect sign-in failed:', err);
+    });
+  }, []);
 
   // Check Admin Status and Bootstrap primary user
   useEffect(() => {
@@ -175,7 +183,32 @@ export default function App() {
     }
   };
 
-  const handleLogin = () => signInWithPopup(auth, googleProvider);
+  const handleLogin = async () => {
+    const isMobileBrowser =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(pointer: coarse)').matches;
+
+    try {
+      if (isMobileBrowser) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      if (
+        err?.code === 'auth/popup-blocked' ||
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
+      console.error('Google sign-in failed:', err);
+    }
+  };
   const handleLogout = () => signOut(auth);
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);

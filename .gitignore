@@ -1,8 +1,12 @@
 node_modules/
+.next/
 build/
 dist/
+out/
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
+
+*.tsbuildinfo

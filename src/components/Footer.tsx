@@ -24,7 +24,7 @@ export default function Footer({ onNavigate, onSubscribe }: FooterProps) {
   return (
     <footer className="bg-[#0c0c0b] text-[#e5e2e1] border-t border-[#e5e2e1]/10 py-16 md:py-24 px-6 md:px-16">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 md:gap-8 items-start">
-        
+
         {/* Left Side branding logo specs */}
         <div className="md:col-span-5 space-y-6">
           <h2 className="font-serif text-2xl md:text-3.5xl tracking-[0.25em] text-white font-bold select-none uppercase">
@@ -101,32 +101,35 @@ export default function Footer({ onNavigate, onSubscribe }: FooterProps) {
               SOCIAL CHANNELS
             </span>
             <div className="flex gap-4 pt-2">
-            <a
-              href="https://instagram.com"
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs font-semibold text-[#e5e2e1]/80 hover:text-[#D2B48C] border border-[#e5e2e1]/10 px-3.5 py-1.5 rounded-full hover:bg-white/5 transition-all uppercase"
-            >
-              Instagram
-            </a>
-            <a
-              href="https://youtube.com"
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs font-semibold text-[#e5e2e1]/80 hover:text-[#D2B48C] border border-[#e5e2e1]/10 px-3.5 py-1.5 rounded-full hover:bg-white/5 transition-all uppercase"
-            >
-              YouTube
-            </a>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-[#e5e2e1]/80 hover:text-[#D2B48C] border border-[#e5e2e1]/10 px-3.5 py-1.5 rounded-full hover:bg-white/5 transition-all uppercase"
+              >
+                Instagram
+              </a>
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-[#e5e2e1]/80 hover:text-[#D2B48C] border border-[#e5e2e1]/10 px-3.5 py-1.5 rounded-full hover:bg-white/5 transition-all uppercase"
+              >
+                YouTube
+              </a>
+            </div>
           </div>
         </div>
-      </div>
 
-    </div>
+      </div>
 
       {/* Bottom copyrights stamp logs */}
       <div className="max-w-7xl mx-auto border-t border-[#e5e2e1]/5 mt-16 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] text-[#c4c7c7]/40 tracking-wider uppercase">
         <p>© 2026 SAKETH KRISHNA CO. ALL RIGHTS RESERVED.</p>
-        <p className="font-mono">CRAFTED FOR CINEMATIC WELLNESS &amp; NUTRITION AT PORT 3000</p>
+        <p className="font-mono">CRAFTED FOR CINEMATIC WELLNESS &amp; NUTRITION</p>
+        <a href="https://aptenox.com" target="_blank" rel="noreferrer" className="font-mono">
+          Aptenox Technology Product
+        </a>
       </div>
     </footer>
   );

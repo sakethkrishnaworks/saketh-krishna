@@ -1,4 +1,5 @@
 import { ArrowRight, Sparkles } from 'lucide-react';
+import SK from '../../assets/sk.jpg';
 import { ASSET_IMAGES } from '../data';
 import { ActiveTab } from '../types';
 
@@ -90,7 +91,7 @@ export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
             <div className="md:col-span-5 relative group" id="hero-portrait-section">
               <div className="aspect-[4/5] overflow-hidden rounded-lg bg-[#1b1b1b] border border-white/5 relative shadow-2xl">
                 <img
-                  src={ASSET_IMAGES.chefPortrait}
+                  src={SK.src}
                   alt="Chef Saketh Krishna in dark culinary attire"
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                 />
