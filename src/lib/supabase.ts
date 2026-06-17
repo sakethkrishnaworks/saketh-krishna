@@ -30,5 +30,12 @@ const noConfigSupabase = {
 
 export const supabase =
     supabaseUrl && supabaseAnonKey
-        ? createClient(supabaseUrl, supabaseAnonKey)
+        ? createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                flowType: 'implicit',
+                detectSessionInUrl: true,
+                persistSession: true,
+                autoRefreshToken: true,
+            },
+        })
         : noConfigSupabase;

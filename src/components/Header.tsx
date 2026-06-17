@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, LogIn, ShoppingBag, ChevronLeft } from 'lucide-react';
+import { LogOut, LogIn, ShoppingBag, ChevronLeft, Shield } from 'lucide-react';
 import { ActiveTab } from '../types';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -47,6 +47,15 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
         <div className="flex items-center gap-1.5">
           {user ? (
             <>
+              {isAdmin && (
+                <button
+                  onClick={() => setActiveTab('admin')}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#D2B48C] active:text-[#feddb3] active:border-[#D2B48C]/30 transition-colors active:scale-90"
+                  title="Admin Panel"
+                >
+                  <Shield className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={onLogout}
                 className="flex items-center justify-center w-9 h-9 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] active:text-red-400 active:border-red-400/30 transition-colors active:scale-90"

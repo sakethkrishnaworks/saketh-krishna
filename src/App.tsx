@@ -340,10 +340,11 @@ export default function App() {
     setIsSigningIn(true);
 
     try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: siteUrl,
           queryParams: {
             prompt: 'select_account',
           },
