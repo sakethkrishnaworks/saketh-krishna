@@ -37,7 +37,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
               <span className="text-xs font-medium">Back</span>
             </button>
           ) : (
-            <span className="font-serif text-sm tracking-wider text-white font-bold select-none pl-1">
+            <span className="font-serif text-lg tracking-wider text-white font-bold select-none pl-1">
               Saketh Krishna
             </span>
           )}

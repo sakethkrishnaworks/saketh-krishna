@@ -1,4 +1,4 @@
-export type ActiveTab = 'home' | 'cookbooks' | 'coaching' | 'library' | 'admin';
+export type ActiveTab = 'home' | 'story' | 'cookbooks' | 'coaching' | 'library' | 'admin';
 
 export interface Subscriber {
   id: string;

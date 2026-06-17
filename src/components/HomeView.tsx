@@ -1,14 +1,14 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
+import { ActiveTab } from '../types';
 import SK from '../../assets/sk.jpg';
 
 interface HomeViewProps {
-  onNavigate: (tab: 'home' | 'cookbooks' | 'coaching' | 'library' | 'admin') => void;
-  onReadStory: () => void;
+  onNavigate: (tab: ActiveTab) => void;
 }
 
-export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
+export default function HomeView({ onNavigate }: HomeViewProps) {
   return (
     <div className="min-h-screen flex flex-col bg-[#0c0c0b] pt-14">
       {/* Hero Image - Full width with fade mask like Linktree */}
@@ -76,7 +76,7 @@ export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
           </button>
 
           <button
-            onClick={onReadStory}
+            onClick={() => onNavigate('story')}
             className="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-white font-sans font-medium text-sm transition-all active:scale-[0.98] hover:border-[#D2B48C]/30 hover:text-white"
           >
             <span>Read My Story</span>

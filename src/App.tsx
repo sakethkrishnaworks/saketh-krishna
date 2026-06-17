@@ -7,7 +7,7 @@ import CookbooksView from './components/CookbooksView';
 import CoachingView from './components/CoachingView';
 import AdminDashboard from './components/AdminDashboard';
 import Footer from './components/Footer';
-import FullStoryModal from './components/FullStoryModal';
+import StoryView from './components/StoryView';
 import CartDrawer from './components/CartDrawer';
 import PurchaseLibraryView from './components/PurchaseLibraryView';
 import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord } from './types';
@@ -35,7 +35,6 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-  const [isStoryOpen, setIsStoryOpen] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
 
@@ -400,7 +399,11 @@ export default function App() {
         {activeTab === 'home' && (
           <HomeView
             onNavigate={setActiveTab}
-            onReadStory={() => setIsStoryOpen(true)}
+          />
+        )}
+        {activeTab === 'story' && (
+          <StoryView
+            onNavigate={setActiveTab}
           />
         )}
         {activeTab === 'cookbooks' && (
@@ -464,11 +467,6 @@ export default function App() {
       </main>
 
       {/* Auxiliary Overlays & slide trays */}
-      <FullStoryModal
-        isOpen={isStoryOpen}
-        onClose={() => setIsStoryOpen(false)}
-      />
-
       <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
