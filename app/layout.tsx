@@ -15,14 +15,27 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: 'Saketh Krishna',
   description: 'Healthy food, sustainable fat loss, and elevated living.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Saketh Krishna',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#121212',
+  themeColor: '#0c0c0b',
 };
 
 export default function RootLayout({
@@ -32,7 +45,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      <body>{children}</body>
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
+      </head>
+      <body>
+        {/* Mobile wrapper - adds a subtle frame on desktop */}
+        <div className="mobile-viewport">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

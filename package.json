@@ -8,20 +8,25 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "clean": "rm -rf .next out dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "drive:oauth": "node scripts/google-drive-oauth.mjs",
+    "drive:check": "node scripts/drive-health-check.mjs",
+    "drive:check:upload": "node scripts/drive-health-check.mjs --upload-test",
+    "seed:cookbooks": "node scripts/seed-cookbooks.mjs",
+    "seed:supabase": "node scripts/seed-supabase.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.35.0",
     "@tailwindcss/postcss": "4.3.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "firebase": "^12.14.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "next": "16.2.6",
+    "pdfjs-dist": "^3.11.172",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "react-firebase-hooks": "^5.1.1",
     "recharts": "^3.8.1"
   },
   "devDependencies": {

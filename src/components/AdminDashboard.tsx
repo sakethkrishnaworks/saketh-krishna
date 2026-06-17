@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import React, { useEffect, useState } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area
 } from 'recharts';
-import { 
-  TrendingUp, 
-  Users, 
-  ShoppingBag, 
-  Calendar, 
-  DollarSign, 
+import {
+  TrendingUp,
+  Users,
+  ShoppingBag,
+  Calendar,
+  DollarSign,
   Search,
   Download,
   Plus,
@@ -28,19 +28,19 @@ import {
   Briefcase,
   ExternalLink,
   Mail,
-  Star
+  Star,
+  Upload
 } from 'lucide-react';
 import { Cookbook, EventSession, Subscriber, DietPlan } from '../types';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { User as FirebaseUser } from 'firebase/auth';
+import { supabase } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 interface AdminDashboardProps {
   cookbooks: Cookbook[];
   events: EventSession[];
   subscribers: Subscriber[];
   dietPlans: DietPlan[];
-  user: FirebaseUser | null | undefined;
+  user: User | null | undefined;
 }
 
 const MOCK_SALES_DATA = [
@@ -61,9 +61,36 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   const [isAddingCookbook, setIsAddingCookbook] = useState(false);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingDietPlan, setIsAddingDietPlan] = useState(false);
+  const [cookbookPdfUrl, setCookbookPdfUrl] = useState('');
+  const [isUploadingCookbookPdf, setIsUploadingCookbookPdf] = useState(false);
+  const [cookbookPdfUploadProgress, setCookbookPdfUploadProgress] = useState(0);
 
   // Growth Performance state
   const [activeMetric, setActiveMetric] = useState<'sales' | 'revenue'>('revenue');
+  const [isChartReady, setIsChartReady] = useState(false);
+
+  useEffect(() => {
+    if (editingCookbook) {
+      setCookbookPdfUrl(editingCookbook.pdfUrl || '');
+      return;
+    }
+
+    if (isAddingCookbook) {
+      setCookbookPdfUrl('');
+      setCookbookPdfUploadProgress(0);
+    }
+  }, [editingCookbook, isAddingCookbook]);
+
+  useEffect(() => {
+    if (activeTab !== 'overview') {
+      setIsChartReady(false);
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => setIsChartReady(true));
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeTab]);
 
   // --- CRUD Operations for Diet Plans ---
   const handleSaveDietPlan = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -79,24 +106,29 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       period: (formData.get('period') as string) || 'quarter',
       image: (formData.get('image') as string) || 'https://images.unsplash.com/photo-1490645935967-10de6ba17061',
       badge: formData.get('badge') as string,
-      popular: formData.get('popular') === 'on'
+      popular: formData.get('popular') === 'on',
     };
 
     try {
-      await setDoc(doc(db, 'dietPlans', id), newPlan);
+      const normalizedPlan = Object.fromEntries(Object.entries(newPlan).map(([k, v]) => [k.toLowerCase(), v]));
+      const { error } = await supabase.from('dietplans').upsert(normalizedPlan, { onConflict: 'id' });
+      if (error) throw error;
       setEditingDietPlan(null);
       setIsAddingDietPlan(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `dietPlans/${id}`);
+      console.error('Diet plan save failed:', err);
+      window.alert(err instanceof Error ? err.message : 'Failed to save diet plan.');
     }
   };
 
   const handleDeleteDietPlan = async (id: string) => {
     if (confirm('Delete this diet plan?')) {
       try {
-        await deleteDoc(doc(db, 'dietPlans', id));
+        const { error } = await supabase.from('dietplans').delete().eq('id', id);
+        if (error) throw error;
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `dietPlans/${id}`);
+        console.error('Diet plan delete failed:', err);
+        window.alert(err instanceof Error ? err.message : 'Failed to delete diet plan.');
       }
     }
   };
@@ -106,7 +138,12 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const id = editingCookbook?.id || `book-${Date.now()}`;
-    
+    const rawFeatures = (formData.get('features') as string) || '';
+
+    const pdfUrl = cookbookPdfUrl.trim();
+    const oldPrice = formData.get('oldPrice') ? parseFloat(formData.get('oldPrice') as string) : undefined;
+    const tag = (formData.get('tag') as string)?.trim();
+
     const newBook: Cookbook = {
       id,
       title: formData.get('title') as string,
@@ -114,26 +151,94 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       price: parseFloat(formData.get('price') as string),
       image: (formData.get('image') as string) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
       category: formData.get('category') as 'high-protein' | 'vegetarian' | 'air-fryer',
-      features: (formData.get('features') as string).split(',').map(f => f.trim()),
-      tag: formData.get('tag') as string,
-      oldPrice: formData.get('oldPrice') ? parseFloat(formData.get('oldPrice') as string) : undefined
+      features: rawFeatures.split(',').map((f) => f.trim()).filter(Boolean),
+      ...(pdfUrl ? { pdfUrl } : {}),
+      ...(tag ? { tag } : {}),
+      ...(oldPrice ? { oldPrice } : {}),
     };
 
     try {
-      await setDoc(doc(db, 'cookbooks', id), newBook);
+      if (Number.isNaN(newBook.price)) {
+        throw new Error('Please enter a valid numeric price.');
+      }
+      const normalizedBook = Object.fromEntries(Object.entries(newBook).map(([k, v]) => [k.toLowerCase(), v]));
+      const { error } = await supabase.from('cookbooks').upsert(normalizedBook, { onConflict: 'id' });
+      if (error) throw error;
       setEditingCookbook(null);
       setIsAddingCookbook(false);
+      window.alert('Cookbook saved successfully.');
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `cookbooks/${id}`);
+      console.error('Cookbook save failed:', err);
+      window.alert(err instanceof Error ? err.message : 'Failed to save cookbook.');
+    }
+  };
+
+  const handleCookbookPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      window.alert('Please upload a PDF file.');
+      e.target.value = '';
+      return;
+    }
+
+    setCookbookPdfUploadProgress(0);
+    setIsUploadingCookbookPdf(true);
+    try {
+      const folderId = editingCookbook?.id || `draft-${Date.now()}`;
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      uploadForm.append('cookbookId', folderId);
+
+      const response = await new Promise<{ pdfUrl: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+
+          const progress = Math.min(95, Math.round((event.loaded / event.total) * 95));
+          setCookbookPdfUploadProgress(progress);
+        };
+
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300 && data.pdfUrl) {
+              resolve(data);
+              return;
+            }
+
+            reject(new Error(data.error || `Drive upload failed with status ${xhr.status}.`));
+          } catch (parseError) {
+            reject(parseError);
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Drive upload request failed.'));
+        xhr.open('POST', '/api/drive-upload');
+        xhr.send(uploadForm);
+      });
+
+      setCookbookPdfUrl(response.pdfUrl);
+      setCookbookPdfUploadProgress(100);
+    } catch (err) {
+      console.error('Cookbook PDF upload failed:', err);
+      window.alert(err instanceof Error ? err.message : 'Google Drive PDF upload failed.');
+    } finally {
+      setIsUploadingCookbookPdf(false);
+      e.target.value = '';
     }
   };
 
   const handleDeleteCookbook = async (id: string) => {
     if (confirm('Delete this asset? This cannot be undone.')) {
       try {
-        await deleteDoc(doc(db, 'cookbooks', id));
+        const { error } = await supabase.from('cookbooks').delete().eq('id', id);
+        if (error) throw error;
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `cookbooks/${id}`);
+        console.error('Cookbook delete failed:', err);
+        window.alert(err instanceof Error ? err.message : 'Failed to delete cookbook.');
       }
     }
   };
@@ -154,24 +259,29 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       tag: formData.get('tag') as string,
       image: (formData.get('image') as string) || 'https://images.unsplash.com/photo-1556910103-1c02745aae4d',
       joined: editingEvent?.joined || 0,
-      tagColor: editingEvent?.tagColor || 'bg-brand-beige text-black'
+      tagColor: editingEvent?.tagColor || 'bg-brand-beige text-black',
     };
 
     try {
-      await setDoc(doc(db, 'events', id), newEvent);
+      const normalizedEvent = Object.fromEntries(Object.entries(newEvent).map(([k, v]) => [k.toLowerCase(), v]));
+      const { error } = await supabase.from('events').upsert(normalizedEvent, { onConflict: 'id' });
+      if (error) throw error;
       setEditingEvent(null);
       setIsAddingEvent(false);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `events/${id}`);
+      console.error('Event save failed:', err);
+      window.alert(err instanceof Error ? err.message : 'Failed to save event.');
     }
   };
 
   const handleDeleteEvent = async (id: string) => {
     if (confirm('Delete this coaching schedule?')) {
       try {
-        await deleteDoc(doc(db, 'events', id));
+        const { error } = await supabase.from('events').delete().eq('id', id);
+        if (error) throw error;
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `events/${id}`);
+        console.error('Event delete failed:', err);
+        window.alert(err instanceof Error ? err.message : 'Failed to delete event.');
       }
     }
   };
@@ -179,9 +289,11 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   const handleDeleteSubscriber = async (id: string) => {
     if (confirm('Remove this subscriber?')) {
       try {
-        await deleteDoc(doc(db, 'subscribers', id));
+        const { error } = await supabase.from('subscribers').delete().eq('id', id);
+        if (error) throw error;
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `subscribers/${id}`);
+        console.error('Subscriber delete failed:', err);
+        window.alert(err instanceof Error ? err.message : 'Failed to delete subscriber.');
       }
     }
   };
@@ -189,9 +301,11 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   const handleToggleSubscriberStatus = async (sub: Subscriber) => {
     const newStatus = sub.status === 'Active' ? 'Unsubscribed' : 'Active';
     try {
-      await updateDoc(doc(db, 'subscribers', sub.id), { status: newStatus });
+      const { error } = await supabase.from('subscribers').update({ status: newStatus }).eq('id', sub.id);
+      if (error) throw error;
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `subscribers/${sub.id}`);
+      console.error('Subscriber status toggle failed:', err);
+      window.alert(err instanceof Error ? err.message : 'Failed to update subscriber status.');
     }
   };
 
@@ -204,22 +318,21 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
             <span className="font-sans text-[10px] tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">MANAGEMENT</span>
           </div>
           <nav className="space-y-1">
-              {[
-                { id: 'overview', label: 'E-commerce Ops', icon: Layout },
-                { id: 'cookbooks', label: 'Digital Assets', icon: ShoppingBag },
-                { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
-                { id: 'schedules', label: 'Service Catalog', icon: Calendar },
-                { id: 'subscribers', label: 'Subscribers', icon: Mail },
-                { id: 'settings', label: 'System Logic', icon: SettingsIcon },
-              ].map((item) => (
+            {[
+              { id: 'overview', label: 'E-commerce Ops', icon: Layout },
+              { id: 'cookbooks', label: 'Cookbooks', icon: ShoppingBag },
+              { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
+              { id: 'schedules', label: 'Service Catalog', icon: Calendar },
+              { id: 'subscribers', label: 'Subscribers', icon: Mail },
+              { id: 'settings', label: 'System Logic', icon: SettingsIcon },
+            ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-sans text-xs font-bold tracking-widest uppercase transition-all ${
-                  activeTab === item.id 
-                    ? 'bg-[#D2B48C] text-[#402d10] shadow-lg shadow-[#D2B48C]/10' 
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-sans text-xs font-bold tracking-widest uppercase transition-all ${activeTab === item.id
+                    ? 'bg-[#D2B48C] text-[#402d10] shadow-lg shadow-[#D2B48C]/10'
                     : 'text-[#c4c7c7]/40 hover:text-white hover:bg-white/5'
-                }`}
+                  }`}
               >
                 <item.icon className="w-4 h-4" />
                 <span className="hidden md:inline">{item.label}</span>
@@ -230,17 +343,17 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       </div>
 
       <div className="lg:pl-80 max-w-7xl mx-auto px-6 md:px-16">
-        
+
         {/* Header Section */}
         <div className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-               <span className="font-sans text-xs tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">ADMIN STRATEGY PORTAL</span>
-               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-sans text-xs tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">ADMIN STRATEGY PORTAL</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
             <h1 className="font-serif text-3.5xl md:text-5xl text-white font-bold leading-tight">
               {activeTab === 'overview' && 'Executive Control'}
-              {activeTab === 'cookbooks' && 'Asset Inventory'}
+              {activeTab === 'cookbooks' && 'Cookbook Catalog'}
               {activeTab === 'dietPlans' && 'Coaching Catalog'}
               {activeTab === 'schedules' && 'Service Distribution'}
               {activeTab === 'subscribers' && 'Marketing Ledger'}
@@ -249,16 +362,16 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
           </div>
           <div className="flex gap-4">
             {activeTab === 'cookbooks' && !isAddingCookbook && (
-              <button 
+              <button
                 onClick={() => setIsAddingCookbook(true)}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#D2B48C] text-[#402d10] font-sans text-[10px] font-bold tracking-widest uppercase rounded hover:bg-[#feddb3] transition-colors"
                 id="add-cookbook-btn"
               >
-                <Plus className="w-3.5 h-3.5" /> NEW PRODUCT
+                <Plus className="w-3.5 h-3.5" /> ADD COOKBOOK
               </button>
             )}
             {activeTab === 'dietPlans' && !isAddingDietPlan && (
-              <button 
+              <button
                 onClick={() => setIsAddingDietPlan(true)}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#D2B48C] text-[#402d10] font-sans text-[10px] font-bold tracking-widest uppercase rounded hover:bg-[#feddb3] transition-colors"
                 id="add-dietplan-btn"
@@ -267,7 +380,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               </button>
             )}
             {activeTab === 'schedules' && !isAddingEvent && (
-              <button 
+              <button
                 onClick={() => setIsAddingEvent(true)}
                 className="flex items-center gap-2 px-6 py-2.5 bg-[#D2B48C] text-[#402d10] font-sans text-[10px] font-bold tracking-widest uppercase rounded hover:bg-[#feddb3] transition-colors"
                 id="add-schedule-btn"
@@ -340,21 +453,23 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                   <button onClick={() => setActiveMetric('sales')} className={`px-4 py-1.5 text-[10px] font-bold tracking-widest uppercase rounded transition-all cursor-pointer ${activeMetric === 'sales' ? 'bg-[#D2B48C] text-[#402d10]' : 'text-white/40 hover:text-white'}`}>Orders</button>
                 </div>
               </div>
-              <div className="p-8 h-[350px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={MOCK_SALES_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#D2B48C" stopOpacity={0.3}/><stop offset="95%" stopColor="#D2B48C" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)', fontFamily: 'Inter' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)', fontFamily: 'Inter' }} tickFormatter={(val) => `₹${val}`} />
-                    <Tooltip contentStyle={{ backgroundColor: '#1b1b1b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} itemStyle={{ fontSize: '10px', color: '#D2B48C', fontWeight: 'bold' }} labelStyle={{ fontSize: '10px', color: '#fff', marginBottom: '4px' }} />
-                    <Area type="monotone" dataKey={activeMetric} stroke="#D2B48C" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="h-[350px] min-h-[350px] w-full min-w-0 p-8">
+                {isChartReady && (
+                  <ResponsiveContainer width="100%" height={286} minWidth={0} minHeight={0}>
+                    <AreaChart data={MOCK_SALES_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#D2B48C" stopOpacity={0.3} /><stop offset="95%" stopColor="#D2B48C" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)', fontFamily: 'Inter' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.4)', fontFamily: 'Inter' }} tickFormatter={(val) => `₹${val}`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1b1b1b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} itemStyle={{ fontSize: '10px', color: '#D2B48C', fontWeight: 'bold' }} labelStyle={{ fontSize: '10px', color: '#fff', marginBottom: '4px' }} />
+                      <Area type="monotone" dataKey={activeMetric} stroke="#D2B48C" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </div>
@@ -367,13 +482,13 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               <div className="glass-panel p-8 rounded-xl border-[#D2B48C]/40 bg-[#0e0e0e]">
                 <div className="flex justify-between mb-8">
                   <h3 className="font-serif text-2xl text-white font-semibold">
-                    {editingCookbook ? 'MODIFICATION' : 'NEW ASSET CREATION'}
+                    {editingCookbook ? 'EDIT COOKBOOK' : 'ADD NEW COOKBOOK'}
                   </h3>
                   <button onClick={() => { setEditingCookbook(null); setIsAddingCookbook(false); }} className="text-white/40 hover:text-white"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleSaveCookbook} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Title</label>
+                    <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Cookbook Name</label>
                     <input name="title" defaultValue={editingCookbook?.title} required className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none" />
                   </div>
                   <div className="space-y-2">
@@ -400,9 +515,47 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                     <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Features (comma separated)</label>
                     <input name="features" defaultValue={editingCookbook?.features.join(', ')} required className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none" />
                   </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Cookbook PDF / Google Drive Link</label>
+                    <div className="flex flex-col gap-3 md:flex-row">
+                      <input
+                        name="pdfUrl"
+                        value={cookbookPdfUrl}
+                        onChange={(e) => setCookbookPdfUrl(e.target.value)}
+                        placeholder="Upload to Google Drive or paste an existing Drive PDF link"
+                        className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none"
+                      />
+                      <label className="flex min-w-fit cursor-pointer items-center justify-center gap-2 rounded bg-white/5 px-5 py-3 font-sans text-[10px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-white/10">
+                        <Upload className="w-3.5 h-3.5" />
+                        {isUploadingCookbookPdf ? `${cookbookPdfUploadProgress}%` : 'Upload PDF'}
+                        <input type="file" accept="application/pdf" onChange={handleCookbookPdfUpload} disabled={isUploadingCookbookPdf} className="hidden" />
+                      </label>
+                    </div>
+                    {(isUploadingCookbookPdf || cookbookPdfUploadProgress > 0) && (
+                      <div className="space-y-2 rounded-lg border border-white/10 bg-[#151515] p-3">
+                        <div className="flex justify-between font-sans text-[10px] font-bold uppercase tracking-widest">
+                          <span className="text-[#c4c7c7]/60">
+                            {isUploadingCookbookPdf ? 'Uploading PDF' : 'Upload Complete'}
+                          </span>
+                          <span className="text-[#D2B48C]">{cookbookPdfUploadProgress}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#D2B48C] to-[#feddb3] transition-all duration-300"
+                            style={{ width: `${cookbookPdfUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {cookbookPdfUrl && (
+                      <a href={cookbookPdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#D2B48C] hover:text-white">
+                        View uploaded PDF <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                   <div className="md:col-span-2 pt-4">
-                    <button type="submit" className="w-full bg-[#D2B48C] text-[#402d10] font-sans font-bold text-xs tracking-widest uppercase py-4 rounded hover:bg-[#feddb3] flex items-center justify-center gap-2">
-                      <Save className="w-4 h-4" /> COMMIT CHANGES
+                    <button type="submit" disabled={isUploadingCookbookPdf} className="w-full bg-[#D2B48C] text-[#402d10] font-sans font-bold text-xs tracking-widest uppercase py-4 rounded hover:bg-[#feddb3] disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2">
+                      <Save className="w-4 h-4" /> {isUploadingCookbookPdf ? 'WAIT FOR PDF UPLOAD' : 'SAVE COOKBOOK'}
                     </button>
                   </div>
                 </form>
@@ -424,11 +577,13 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                     <tr key={book.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
-                           <img src={book.image} className="w-10 h-12 rounded bg-zinc-900 object-cover" />
-                           <div>
-                              <div className="font-serif text-sm text-white font-medium">{book.title}</div>
-                              <div className="font-sans text-[9px] text-[#D2B48C] font-bold uppercase">{book.category}</div>
-                           </div>
+                          <img src={book.image} className="w-10 h-12 rounded bg-zinc-900 object-cover" />
+                          <div>
+                            <div className="font-serif text-sm text-white font-medium">{book.title}</div>
+                            <div className="font-sans text-[9px] text-[#D2B48C] font-bold uppercase">
+                              {book.category}{book.pdfUrl ? ' · PDF READY' : ''}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-8 py-5 font-mono text-xs text-white/40">342 Units</td>
@@ -499,25 +654,25 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {dietPlans.map(plan => (
                 <div key={plan.id} className="glass-panel overflow-hidden rounded-xl group relative">
-                   <div className="h-44 relative">
-                     <img src={plan.image} className="w-full h-full object-cover opacity-60" />
-                     <div className="absolute inset-0 bg-gradient-to-t from-[#121212] flex items-end p-6">
-                        <div>
-                          <div className="text-[8px] font-bold text-[#D2B48C] tracking-widest uppercase">{plan.badge}</div>
-                          <div className="text-white font-serif text-xl font-bold">{plan.title}</div>
-                        </div>
-                     </div>
-                   </div>
-                   <div className="p-6 space-y-4">
-                      <div className="flex justify-between items-baseline">
-                         <span className="font-serif text-2xl font-bold text-emerald-400">₹{plan.price.toLocaleString('en-IN')}</span>
-                         <span className="text-[10px] text-white/40 uppercase">/ {plan.period}</span>
+                  <div className="h-44 relative">
+                    <img src={plan.image} className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#121212] flex items-end p-6">
+                      <div>
+                        <div className="text-[8px] font-bold text-[#D2B48C] tracking-widest uppercase">{plan.badge}</div>
+                        <div className="text-white font-serif text-xl font-bold">{plan.title}</div>
                       </div>
-                      <div className="flex justify-between items-center pt-4 border-t border-white/5">
-                        <button onClick={() => setEditingDietPlan(plan)} className="flex items-center gap-2 text-[10px] font-bold text-[#D2B48C] uppercase hover:text-white transition-colors"><Edit2 className="w-3 h-3" /> SETTINGS</button>
-                        <button onClick={() => handleDeleteDietPlan(plan.id)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                   </div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-serif text-2xl font-bold text-emerald-400">₹{plan.price.toLocaleString('en-IN')}</span>
+                      <span className="text-[10px] text-white/40 uppercase">/ {plan.period}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                      <button onClick={() => setEditingDietPlan(plan)} className="flex items-center gap-2 text-[10px] font-bold text-[#D2B48C] uppercase hover:text-white transition-colors"><Edit2 className="w-3 h-3" /> SETTINGS</button>
+                      <button onClick={() => handleDeleteDietPlan(plan.id)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -572,22 +727,22 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {events.map(ev => (
                 <div key={ev.id} className="glass-panel overflow-hidden rounded-xl group relative">
-                   <div className="h-40 relative">
-                     <img src={ev.image} className="w-full h-full object-cover opacity-60" />
-                     <div className="absolute inset-0 bg-gradient-to-t from-[#121212] flex items-end p-6">
-                        <div className="text-white font-serif text-2xl font-bold">{ev.date} {ev.month}</div>
-                     </div>
-                   </div>
-                   <div className="p-6 space-y-4">
-                      <div>
-                        <span className="text-[9px] font-bold text-[#D2B48C] tracking-widest uppercase">{ev.tag}</span>
-                        <h4 className="font-serif text-lg text-white font-semibold line-clamp-1">{ev.title}</h4>
-                      </div>
-                      <div className="flex justify-between items-center pt-4 border-t border-white/5">
-                        <button onClick={() => setEditingEvent(ev)} className="flex items-center gap-2 text-[10px] font-bold text-[#D2B48C] uppercase hover:text-white transition-colors"><Edit2 className="w-3 h-3" /> SETTINGS</button>
-                        <button onClick={() => handleDeleteEvent(ev.id)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                   </div>
+                  <div className="h-40 relative">
+                    <img src={ev.image} className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#121212] flex items-end p-6">
+                      <div className="text-white font-serif text-2xl font-bold">{ev.date} {ev.month}</div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <span className="text-[9px] font-bold text-[#D2B48C] tracking-widest uppercase">{ev.tag}</span>
+                      <h4 className="font-serif text-lg text-white font-semibold line-clamp-1">{ev.title}</h4>
+                    </div>
+                    <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                      <button onClick={() => setEditingEvent(ev)} className="flex items-center gap-2 text-[10px] font-bold text-[#D2B48C] uppercase hover:text-white transition-colors"><Edit2 className="w-3 h-3" /> SETTINGS</button>
+                      <button onClick={() => handleDeleteEvent(ev.id)} className="p-2 text-white/20 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -599,16 +754,16 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
           <div className="space-y-8">
             <div className="glass-panel overflow-hidden rounded-xl border-white/5">
               <div className="p-8 border-b border-white/5 bg-[#0e0e0e]/50 flex justify-between items-center">
-                 <div>
-                    <h3 className="font-serif text-xl text-white font-semibold">User Subscriptions</h3>
-                    <p className="font-sans text-[10px] text-[#c4c7c7]/60 tracking-wider uppercase">Mailing list & Active leads</p>
-                 </div>
-                 <div className="flex gap-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                      <input placeholder="SEARCH EMAILS..." className="bg-[#131313] border border-white/10 rounded px-10 py-2.5 font-sans text-[10px] tracking-widest text-white focus:outline-none focus:border-[#D2B48C]" />
-                    </div>
-                 </div>
+                <div>
+                  <h3 className="font-serif text-xl text-white font-semibold">User Subscriptions</h3>
+                  <p className="font-sans text-[10px] text-[#c4c7c7]/60 tracking-wider uppercase">Mailing list & Active leads</p>
+                </div>
+                <div className="flex gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                    <input placeholder="SEARCH EMAILS..." className="bg-[#131313] border border-white/10 rounded px-10 py-2.5 font-sans text-[10px] tracking-widest text-white focus:outline-none focus:border-[#D2B48C]" />
+                  </div>
+                </div>
               </div>
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#1b1b1b] border-b border-white/5 font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">
@@ -623,20 +778,19 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                   {subscribers.map(sub => (
                     <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-8 py-5">
-                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#D2B48C]/10 flex items-center justify-center text-[#D2B48C] font-bold text-xs">
-                              {sub.email.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="font-sans text-sm text-white font-medium">{sub.email}</span>
-                         </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#D2B48C]/10 flex items-center justify-center text-[#D2B48C] font-bold text-xs">
+                            {sub.email.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-sans text-sm text-white font-medium">{sub.email}</span>
+                        </div>
                       </td>
                       <td className="px-8 py-5 font-mono text-xs text-white/40">{sub.date}</td>
                       <td className="px-8 py-5">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase border ${
-                          sub.status === 'Active' 
-                            ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20' 
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase border ${sub.status === 'Active'
+                            ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20'
                             : 'bg-red-950/20 text-red-400 border-red-500/20'
-                        }`}>
+                          }`}>
                           {sub.status}
                         </span>
                       </td>
@@ -675,61 +829,61 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
         {activeTab === 'settings' && (
           <div className="space-y-8">
             <div className="glass-panel p-10 rounded-xl space-y-12">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <SettingsIcon className="w-5 h-5 text-[#D2B48C]" />
-                      <h3 className="font-serif text-xl text-white">Application Parameters</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <SettingsIcon className="w-5 h-5 text-[#D2B48C]" />
+                    <h3 className="font-serif text-xl text-white">Application Parameters</h3>
+                  </div>
+                  <div className="space-y-6 pt-4">
+                    <div className="flex justify-between items-center py-4 border-b border-white/5">
+                      <div>
+                        <div className="text-white text-sm font-medium">Production Checkout</div>
+                        <div className="text-[10px] text-white/40 uppercase">Enable real-time Stripe processing hooks</div>
+                      </div>
+                      <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
+                        <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
+                      </div>
                     </div>
-                    <div className="space-y-6 pt-4">
-                       <div className="flex justify-between items-center py-4 border-b border-white/5">
-                          <div>
-                            <div className="text-white text-sm font-medium">Production Checkout</div>
-                            <div className="text-[10px] text-white/40 uppercase">Enable real-time Stripe processing hooks</div>
-                          </div>
-                          <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
-                             <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
-                          </div>
-                       </div>
-                       <div className="flex justify-between items-center py-4 border-b border-white/5">
-                          <div>
-                            <div className="text-white text-sm font-medium">Inventory Sync</div>
-                            <div className="text-[10px] text-white/40 uppercase">AWS S3 Image processing pipeline status</div>
-                          </div>
-                          <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
-                             <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
-                          </div>
-                       </div>
+                    <div className="flex justify-between items-center py-4 border-b border-white/5">
+                      <div>
+                        <div className="text-white text-sm font-medium">Inventory Sync</div>
+                        <div className="text-[10px] text-white/40 uppercase">AWS S3 Image processing pipeline status</div>
+                      </div>
+                      <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
+                        <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Briefcase className="w-5 h-5 text-[#D2B48C]" />
-                      <h3 className="font-serif text-xl text-white">Security &amp; API Keys</h3>
-                    </div>
-                    <div className="space-y-4 pt-4">
-                       <div className="space-y-2">
-                         <label className="text-[9px] font-bold text-[#c4c7c7] uppercase">Integration Endpoint</label>
-                         <div className="flex gap-2">
-                           <input disabled value="https://api.gateway.v2.sakethkrishna.com/v1" className="flex-grow bg-[#1b1b1b] border border-white/5 rounded px-4 py-3 text-white/30 text-xs font-mono" />
-                           <button className="px-4 bg-white/5 rounded text-white/40"><ExternalLink className="w-4 h-4" /></button>
-                         </div>
-                       </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="w-5 h-5 text-[#D2B48C]" />
+                    <h3 className="font-serif text-xl text-white">Security &amp; API Keys</h3>
+                  </div>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-[#c4c7c7] uppercase">Integration Endpoint</label>
+                      <div className="flex gap-2">
+                        <input disabled value="https://api.gateway.v2.sakethkrishna.com/v1" className="flex-grow bg-[#1b1b1b] border border-white/5 rounded px-4 py-3 text-white/30 text-xs font-mono" />
+                        <button className="px-4 bg-white/5 rounded text-white/40"><ExternalLink className="w-4 h-4" /></button>
+                      </div>
                     </div>
                   </div>
-               </div>
-               
-               <div className="pt-12 border-t border-white/10 flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                     <div className="p-3 bg-blue-500/10 rounded-full"><TrendingUp className="w-5 h-5 text-blue-400" /></div>
-                     <div>
-                        <div className="text-white text-sm font-bold">Cloud Cluster Health</div>
-                        <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">99.98% Uptime - 23ms Latency</div>
-                     </div>
+                </div>
+              </div>
+
+              <div className="pt-12 border-t border-white/10 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-500/10 rounded-full"><TrendingUp className="w-5 h-5 text-blue-400" /></div>
+                  <div>
+                    <div className="text-white text-sm font-bold">Cloud Cluster Health</div>
+                    <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">99.98% Uptime - 23ms Latency</div>
                   </div>
-                  <button className="px-8 py-3 bg-red-500/10 border border-red-500/20 text-red-500 font-sans font-bold text-[10px] tracking-widest uppercase rounded hover:bg-red-500/20 transition-all">Emergency Lockdown</button>
-               </div>
+                </div>
+                <button className="px-8 py-3 bg-red-500/10 border border-red-500/20 text-red-500 font-sans font-bold text-[10px] tracking-widest uppercase rounded hover:bg-red-500/20 transition-all">Emergency Lockdown</button>
+              </div>
             </div>
           </div>
         )}

@@ -11,6 +11,7 @@
         "price": { "type": "number" },
         "oldPrice": { "type": "number" },
         "image": { "type": "string" },
+        "pdfUrl": { "type": "string" },
         "category": { "type": "string", "enum": ["high-protein", "vegetarian", "air-fryer"] },
         "tag": { "type": "string" },
         "features": { "type": "array", "items": { "type": "string" } }

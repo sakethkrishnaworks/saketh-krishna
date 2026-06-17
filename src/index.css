@@ -8,13 +8,84 @@
   --color-brand-olive: #556B2F;
 }
 
-/* Custom Elegant Scrollbars */
+/* ============================================
+   MOBILE-FIRST: Native App Feel
+   ============================================ */
+
+/* On desktop, wrap content in a phone-like viewport */
+.mobile-viewport {
+  width: 100%;
+  min-height: 100dvh;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* On wider screens, constrain to mobile-like width with subtle border */
+@media (min-width: 768px) {
+  body {
+    background-color: #050505;
+  }
+  
+  .mobile-viewport {
+    max-width: 430px;
+    min-height: 100dvh;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 40px rgba(0, 0, 0, 0.8);
+    position: relative;
+    background-color: #0c0c0b;
+  }
+}
+
+/* Native-like tap highlights */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Smooth momentum scrolling */
+html {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch; 
+}
+
+body {
+  background-color: #0c0c0b;
+  color: #e5e2e1;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  /* Prevent text size adjust on orientation change */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Prevent pull-to-refresh and overscroll on mobile */
+html, body {
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+/* Remove input zoom on iOS */
+@media (max-width: 767px) {
+  input, select, textarea, button {
+    font-size: 16px !important;
+  }
+}
+
+/* ============================================
+   Custom Elegant Scrollbars (mobile-thin)
+   ============================================ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 3px;
+  height: 3px;
 }
 ::-webkit-scrollbar-track {
-  background: #0e0e0e;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #2a2a2a;
@@ -24,45 +95,432 @@
   background: #D2B48C;
 }
 
-body {
-  background-color: #121212;
-  color: #e5e2e1;
-  font-family: var(--font-sans);
-  overflow-x: hidden;
+/* ============================================
+   Safe area insets for notched devices
+   ============================================ */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.safe-right {
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
-html,
-body {
-  width: 100%;
-  max-width: 100%;
-  -webkit-text-size-adjust: 100%;
-}
-
-button,
-a,
-input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button,
-a {
+/* ============================================
+   Button / Link touch optimizations
+   ============================================ */
+button, a {
   touch-action: manipulation;
+  cursor: pointer;
 }
 
-@media (max-width: 767px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px;
-  }
+/* Larger touch targets for mobile (min 44px) */
+.mobile-touch-target {
+  min-height: 44px;
+  min-width: 44px;
 }
 
-/* Glassmorphism helpers */
+/* Active state feedback for touch */
+.touch-active:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+  transition: none;
+}
+
+/* ============================================
+   Glassmorphism helpers (legacy)
+   ============================================ */
 .glass-panel {
   background: rgba(28, 28, 28, 0.6);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(245, 245, 245, 0.08);
+}
+
+/* ============================================
+   Premium in-app cookbook reader
+   ============================================ */
+.premium-reader-scroll {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(210, 180, 140, 0.16), transparent 34%),
+    radial-gradient(circle at 85% 12%, rgba(200, 105, 26, 0.13), transparent 32%),
+    linear-gradient(135deg, #090604 0%, #160f0a 42%, #070605 100%);
+}
+
+.premium-book-reader {
+  position: relative;
+  display: flex;
+  min-height: calc(100vh - 126px);
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(210, 180, 140, 0.18);
+  border-radius: 28px;
+  background:
+    linear-gradient(120deg, rgba(255, 247, 231, 0.1), transparent 34%),
+    linear-gradient(180deg, #f5f0e8 0%, #eee1cc 100%);
+  padding: 22px 14px 24px;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.premium-book-reader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(61, 31, 10, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(61, 31, 10, 0.02) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.55;
+}
+
+.premium-reader-masthead {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 980px);
+  margin-bottom: 18px;
+  border: 1px solid rgba(200, 168, 122, 0.36);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(61, 31, 10, 0.95), rgba(120, 67, 24, 0.88)),
+    #3d1f0a;
+  padding: 18px 22px;
+  color: #f8ead2;
+  box-shadow: 0 18px 34px rgba(61, 31, 10, 0.24), inset 0 1px 0 rgba(255, 232, 190, 0.18);
+}
+
+.premium-reader-kicker {
+  display: block;
+  color: #d2b48c;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.premium-reader-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+.premium-reader-title-row h4 {
+  color: #fff7e9;
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 3vw, 34px);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.premium-reader-masthead p {
+  margin-top: 8px;
+  color: rgba(248, 234, 210, 0.7);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.premium-book-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 980px;
+  min-height: min(68vh, 760px);
+  overflow: hidden;
+  border: 1px solid rgba(120, 67, 24, 0.28);
+  border-radius: 10px 16px 16px 10px;
+  background: #3d1f0a;
+  box-shadow:
+    -18px 24px 40px rgba(61, 31, 10, 0.24),
+    18px 24px 40px rgba(0, 0, 0, 0.18),
+    0 2px 0 rgba(255, 255, 255, 0.45);
+}
+
+.premium-book-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.11), transparent 7%, transparent 93%, rgba(0, 0, 0, 0.14)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 18%, rgba(61, 31, 10, 0.08));
+  mix-blend-mode: multiply;
+}
+
+.premium-page {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: min(68vh, 760px);
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 35% 18%, rgba(255, 255, 255, 0.88), transparent 34%),
+    linear-gradient(180deg, #fffdf8 0%, #fbf3e6 100%);
+  padding: 20px 18px 12px;
+}
+
+.premium-page-left {
+  border-radius: 9px 0 0 9px;
+  box-shadow: inset -16px 0 26px rgba(61, 31, 10, 0.12), inset -1px 0 0 rgba(120, 67, 24, 0.18);
+}
+
+.premium-page-right {
+  border-radius: 0 9px 9px 0;
+  box-shadow: inset 16px 0 26px rgba(61, 31, 10, 0.12), inset 1px 0 0 rgba(120, 67, 24, 0.18);
+}
+
+.premium-book-spine {
+  position: relative;
+  z-index: 2;
+  width: 14px;
+  flex-shrink: 0;
+  background:
+    linear-gradient(90deg, #5a3213, #e8c9a0 22%, #c8a87a 50%, #f1d6aa 78%, #5a3213),
+    #c8a87a;
+  box-shadow: 0 0 16px rgba(61, 31, 10, 0.45);
+}
+
+.premium-book-spine::before {
+  content: "";
+  position: absolute;
+  inset: 0 4px;
+  background: rgba(61, 31, 10, 0.18);
+  filter: blur(3px);
+}
+
+.premium-page-number {
+  margin-top: auto;
+  padding-top: 12px;
+  color: rgba(90, 58, 26, 0.46);
+  font-family: var(--font-serif);
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.premium-page-frame,
+.premium-page-canvas,
+.premium-page-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+}
+
+.premium-single-pdf-fallback {
+  display: flex;
+  width: 100%;
+  min-height: min(68vh, 760px);
+  background: #fffdf8;
+}
+
+.premium-page-frame {
+  background: #fffdf8;
+  border-radius: 4px;
+}
+
+.premium-page-canvas {
+  display: block;
+  object-fit: contain;
+  width: 100%;
+  height: auto;
+  max-height: calc(68vh - 44px);
+  margin: auto;
+  filter: drop-shadow(0 8px 18px rgba(61, 31, 10, 0.12));
+}
+
+.premium-page-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.premium-reader-controls,
+.premium-slider-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 620px);
+}
+
+.premium-reader-controls {
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.premium-nav-btn {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(245, 200, 66, 0.28);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(245, 200, 66, 0.3), transparent 34%),
+    #3d1f0a;
+  color: #f5c842;
+  font-size: 24px;
+  line-height: 1;
+  box-shadow: 0 12px 22px rgba(61, 31, 10, 0.22);
+  transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+
+.premium-nav-btn:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.04);
+  background: #c8691a;
+  color: #fff7e9;
+}
+
+.premium-nav-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.premium-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.36;
+}
+
+.premium-page-indicator {
+  min-width: 140px;
+  border: 1px solid rgba(200, 168, 122, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.54);
+  color: #5a3a1a;
+  font-family: var(--font-serif);
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  padding: 8px 16px;
+  text-align: center;
+}
+
+.premium-slider-row {
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.premium-slider-row span {
+  color: rgba(90, 58, 26, 0.78);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.premium-page-slider {
+  flex: 1;
+  height: 7px;
+  appearance: none;
+  border: 1px solid rgba(120, 67, 24, 0.15);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #9d6a34, #d4b896, #9d6a34);
+  outline: none;
+}
+
+.premium-page-slider::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  appearance: none;
+  cursor: pointer;
+  border: 2px solid #f5c842;
+  border-radius: 50%;
+  background: #3d1f0a;
+  box-shadow: 0 3px 10px rgba(61, 31, 10, 0.32);
+}
+
+.premium-page-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  border: 2px solid #f5c842;
+  border-radius: 50%;
+  background: #3d1f0a;
+}
+
+.premium-page-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 253, 248, 0.88);
+  color: #3d1f0a;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.premium-page-error {
+  padding: 24px;
+  background: rgba(255, 238, 238, 0.96);
+  color: #8c1c13;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+@media (max-width: 900px) {
+  .premium-book-reader {
+    min-height: calc(100vh - 116px);
+    border-radius: 20px;
+    padding: 14px 10px 18px;
+  }
+
+  .premium-reader-masthead {
+    border-radius: 16px;
+    padding: 14px 16px;
+  }
+
+  .premium-book-container {
+    max-width: 560px;
+    min-height: 68vh;
+    flex-direction: column;
+    border-radius: 10px;
+  }
+
+  .premium-page {
+    min-height: 34vh;
+    padding: 14px 12px 10px;
+  }
+
+  .premium-page-left,
+  .premium-page-right {
+    border-radius: 8px;
+  }
+
+  .premium-book-spine {
+    width: 100%;
+    height: 12px;
+  }
+
+  .premium-reader-controls {
+    margin-top: 14px;
+  }
+
+  .premium-slider-row {
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .premium-page-slider {
+    width: 100%;
+  }
 }

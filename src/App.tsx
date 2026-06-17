@@ -9,117 +9,210 @@ import AdminDashboard from './components/AdminDashboard';
 import Footer from './components/Footer';
 import FullStoryModal from './components/FullStoryModal';
 import CartDrawer from './components/CartDrawer';
-import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan } from './types';
-import { COOKBOOKS_DATA, EVENTS_DATA, DIET_PLANS } from './data';
-import { auth, db, googleProvider, testFirebaseConnection } from './lib/firebase';
-import {
-  browserLocalPersistence,
-  getRedirectResult,
-  setPersistence,
-  signInWithPopup,
-  signInWithRedirect,
-  signOut,
-} from 'firebase/auth';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
+import PurchaseLibraryView from './components/PurchaseLibraryView';
+import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord } from './types';
+import { supabase } from './lib/supabase';
+import { User } from '@supabase/supabase-js';
+
+const AUTHORIZED_ADMIN_EMAILS = ['sakethkrishna.work@gmail.com', 'gokulkannan0205@gmail.com'];
+
+function isAuthorizedAdminEmail(email?: string | null) {
+  return Boolean(email && AUTHORIZED_ADMIN_EMAILS.includes(email.toLowerCase()));
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [user, loading] = useAuthState(auth);
+  const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  
-  // State synchronized with Firebase
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // State synchronized with Supabase
   const [cookbooks, setCookbooks] = useState<Cookbook[]>([]);
   const [events, setEvents] = useState<EventSession[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [dietPlans, setDietPlans] = useState<DietPlan[]>([]);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isStoryOpen, setIsStoryOpen] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
 
   useEffect(() => {
-    setPersistence(auth, browserLocalPersistence)
-      .then(() => getRedirectResult(auth))
-      .catch((err) => {
-        console.error('Google redirect sign-in failed:', err);
-      });
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setUser(data.session?.user ?? null);
+      } catch (err) {
+        console.error('Supabase auth initialization failed:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   // Check Admin Status and Bootstrap primary user
   useEffect(() => {
     async function checkAdmin() {
-      if (user) {
-        // Special bootstrap for authorized administrators
-        const authorizedEmails = ['sakethkrishna.work@gmail.com', 'gokulkannan0205@gmail.com'];
-        if (user.email && authorizedEmails.includes(user.email.toLowerCase())) {
-          try {
-            const adminRef = doc(db, 'admins', user.uid);
-            const adminSnap = await getDoc(adminRef);
-            if (!adminSnap.exists()) {
-              await setDoc(adminRef, { uid: user.uid, email: user.email.toLowerCase(), role: 'admin' });
-              console.log('Admin bootstrap successful for:', user.email);
-            }
-          } catch (err) {
-            console.error('Admin bootstrap failed:', err);
-          }
+      if (!user?.email) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const isAuthorizedAdmin = isAuthorizedAdminEmail(user.email);
+
+      try {
+        const { data, error } = await supabase
+          .from('admins')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (!error && data) {
+          setIsAdmin(true);
+          return;
         }
 
-        const adminRef = doc(db, 'admins', user.uid);
-        const adminSnap = await getDoc(adminRef);
-        setIsAdmin(adminSnap.exists());
-      } else {
+        if (isAuthorizedAdmin) {
+          const { error: upsertError } = await supabase
+            .from('admins')
+            .upsert(
+              { user_id: user.id, email: user.email.toLowerCase(), role: 'admin' },
+              { onConflict: 'user_id' }
+            );
+
+          if (upsertError) throw upsertError;
+          setIsAdmin(true);
+          return;
+        }
+
         setIsAdmin(false);
+      } catch (err) {
+        console.error('Admin bootstrap failed:', err);
+        setIsAdmin(isAuthorizedAdmin);
       }
     }
-    checkAdmin();
+
+    void checkAdmin();
   }, [user]);
 
-  // Sync state with Firestore real-time listeners
+  // Sync state with Supabase
   useEffect(() => {
-    testFirebaseConnection();
+    const fetchCookbooks = async () => {
+      const { data, error } = await supabase.from('cookbooks').select('*');
+      if (error) {
+        console.error('Cookbooks fetch failed:', error);
+        return;
+      }
 
-    // Subscribe to Cookbooks
-    const unsubCookbooks = onSnapshot(collection(db, 'cookbooks'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data() as Cookbook }));
-      setCookbooks(data.length > 0 ? data : COOKBOOKS_DATA);
-    }, (err) => {
-      console.error('Cookbooks fetch failed:', err);
-    });
+      const normalized = (data ?? []).map((row: any) => ({
+        ...row,
+        pdfUrl: row.pdfUrl ?? row.pdfurl ?? row.pdf_url ?? undefined,
+        oldPrice: row.oldprice ?? row.old_price ?? row.oldPrice ?? undefined,
+      }));
 
-    // Subscribe to Events
-    const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data() as EventSession }));
-      setEvents(data.length > 0 ? data : EVENTS_DATA);
-    }, (err) => {
-      console.error('Events fetch failed:', err);
-    });
+      setCookbooks(normalized as Cookbook[]);
+    };
 
-    // Subscribe to Diet Plans
-    const unsubDietPlans = onSnapshot(collection(db, 'dietPlans'), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data() as DietPlan }));
-      setDietPlans(data.length > 0 ? data : DIET_PLANS);
-    }, (err) => {
-      console.error('Diet plans fetch failed:', err);
-    });
+    const fetchEvents = async () => {
+      const { data, error } = await supabase.from('events').select('*');
+      if (error) {
+        console.error('Events fetch failed:', error);
+        return;
+      }
+      setEvents((data ?? []) as EventSession[]);
+    };
 
-    let unsubSubs: (() => void) | undefined;
-    if (isAdmin) {
-      unsubSubs = onSnapshot(collection(db, 'subscribers'), (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ ...doc.data() as Subscriber }));
-        setSubscribers(data);
-      }, (err) => {
-        console.error('Subscribers stream restricted:', err);
+    const fetchDietPlans = async () => {
+      const { data, error } = await supabase.from('dietplans').select('*');
+      if (error) {
+        console.error('Diet plans fetch failed:', error);
+        return;
+      }
+      setDietPlans((data ?? []) as DietPlan[]);
+    };
+
+    const fetchSubscribers = async () => {
+      const { data, error } = await supabase.from('subscribers').select('*');
+      if (error) {
+        console.error('Subscribers fetch failed:', error);
+        return;
+      }
+      setSubscribers((data ?? []) as Subscriber[]);
+    };
+
+    const applyRealtimeUpdate = (payload: any, setter: any) => {
+      const normalize = (obj: any) => ({
+        ...obj,
+        pdfUrl: obj?.pdfUrl ?? obj?.pdfurl ?? obj?.pdf_url ?? undefined,
+        oldPrice: obj?.oldprice ?? obj?.old_price ?? obj?.oldPrice ?? undefined,
       });
+
+      if (payload.eventType === 'INSERT') {
+        setter((prev: any[]) => [...prev, normalize(payload.new)]);
+      } else if (payload.eventType === 'UPDATE') {
+        setter((prev: any[]) => prev.map((item) => (item.id === payload.new.id ? normalize(payload.new) : item)));
+      } else if (payload.eventType === 'DELETE') {
+        setter((prev: any[]) => prev.filter((item) => item.id !== payload.old.id));
+      }
+    };
+
+    void fetchCookbooks();
+    void fetchEvents();
+    void fetchDietPlans();
+    if (isAdmin) void fetchSubscribers();
+
+    const cookbooksChannel = supabase
+      .channel('realtime-cookbooks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cookbooks' }, (payload) => {
+        applyRealtimeUpdate(payload, setCookbooks);
+      })
+      .subscribe();
+
+    const eventsChannel = supabase
+      .channel('realtime-events')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, (payload) => {
+        applyRealtimeUpdate(payload, setEvents);
+      })
+      .subscribe();
+
+    const dietPlansChannel = supabase
+      .channel('realtime-dietplans')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dietplans' }, (payload) => {
+        applyRealtimeUpdate(payload, setDietPlans);
+      })
+      .subscribe();
+
+    let subscribersChannel: any;
+    if (isAdmin) {
+      subscribersChannel = supabase
+        .channel('realtime-subscribers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'subscribers' }, (payload) => {
+          applyRealtimeUpdate(payload, setSubscribers);
+        })
+        .subscribe();
     }
 
     return () => {
-      unsubCookbooks();
-      unsubEvents();
-      unsubDietPlans();
-      if (unsubSubs) unsubSubs();
+      supabase.removeChannel(cookbooksChannel);
+      supabase.removeChannel(eventsChannel);
+      supabase.removeChannel(dietPlansChannel);
+      if (subscribersChannel) supabase.removeChannel(subscribersChannel);
     };
   }, [isAdmin]);
 
@@ -134,6 +227,22 @@ export default function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setPurchases([]);
+      return;
+    }
+
+    const savedPurchases = localStorage.getItem(`saketh_purchases_${user.id}`);
+    if (savedPurchases) {
+      try {
+        setPurchases(JSON.parse(savedPurchases));
+      } catch (e) {
+        console.error('Failed to parse purchases:', e);
+      }
+    }
+  }, [user?.id]);
 
   const handleSaveCart = (updatedCart: CartItem[]) => {
     setCartItems(updatedCart);
@@ -182,18 +291,44 @@ export default function App() {
     handleSaveCart([]);
   };
 
+  const handlePurchaseComplete = (items: CartItem[]) => {
+    if (!user?.id) return;
+
+    const purchasedAt = new Date().toISOString();
+    const nextPurchases = items.reduce<PurchaseRecord[]>((records, item) => {
+      const existingIndex = records.findIndex((record) => record.cookbook.id === item.cookbook.id);
+      const record: PurchaseRecord = {
+        id: `${item.cookbook.id}-${Date.now()}`,
+        cookbook: item.cookbook,
+        purchasedAt,
+      };
+
+      if (existingIndex >= 0) {
+        const updatedRecords = [...records];
+        updatedRecords[existingIndex] = { ...records[existingIndex], cookbook: item.cookbook, purchasedAt };
+        return updatedRecords;
+      }
+
+      return [...records, record];
+    }, purchases);
+
+    setPurchases(nextPurchases);
+    localStorage.setItem(`saketh_purchases_${user.id}`, JSON.stringify(nextPurchases));
+  };
+
   const handleSubscribe = async (email: string) => {
-    if (subscribers.some(s => s.email === email)) return;
+    if (subscribers.some((s) => s.email === email)) return;
     const subId = `sub-${Date.now()}`;
     const newSub: Subscriber = {
       id: subId,
       email,
       date: new Date().toISOString().split('T')[0],
-      status: 'Active'
+      status: 'Active',
     };
-    
+
     try {
-      await setDoc(doc(db, 'subscribers', subId), newSub);
+      const { error } = await supabase.from('subscribers').insert(newSub);
+      if (error) throw error;
     } catch (err) {
       console.error('Subscription failed:', err);
     }
@@ -202,52 +337,46 @@ export default function App() {
   const handleLogin = async () => {
     if (isSigningIn) return;
 
-    const isMobileBrowser =
-      typeof window !== 'undefined' &&
-      (window.matchMedia('(pointer: coarse)').matches ||
-        window.matchMedia('(max-width: 767px)').matches);
-
     setAuthError('');
     setIsSigningIn(true);
+
     try {
-      if (isMobileBrowser) {
-        await signInWithRedirect(auth, googleProvider);
-        return;
-      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            prompt: 'select_account',
+          },
+        },
+      });
 
-      await setPersistence(auth, browserLocalPersistence);
-      await signInWithPopup(auth, googleProvider);
+      if (error) throw error;
     } catch (err: any) {
-      if (
-        !isMobileBrowser &&
-        (
-          err?.code === 'auth/popup-blocked' ||
-          err?.code === 'auth/popup-closed-by-user' ||
-          err?.code === 'auth/cancelled-popup-request' ||
-          err?.code === 'auth/operation-not-supported-in-this-environment'
-        )
-      ) {
-        await signInWithRedirect(auth, googleProvider);
-        return;
-      }
-
       console.error('Google sign-in failed:', err);
-      const message =
-        err?.code === 'auth/unauthorized-domain'
-          ? `Google sign-in is blocked because this domain is not authorized in Firebase: ${window.location.hostname}`
-          : err?.message || 'Google sign-in failed. Please try again.';
+      const message = err?.message || 'Google sign-in failed. Please try again.';
       setAuthError(message);
-      if (isMobileBrowser) window.alert(message);
+      window.alert(message);
     } finally {
       setIsSigningIn(false);
     }
   };
-  const handleLogout = () => signOut(auth);
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out failed:', error);
+    }
+  };
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const libraryPurchases = purchases.map((purchase) => {
+    const latestCookbook = cookbooks.find((book) => book.id === purchase.cookbook.id);
+
+    return latestCookbook ? { ...purchase, cookbook: latestCookbook } : purchase;
+  });
 
   return (
-    <div className="min-h-screen bg-[#121212] flex flex-col justify-between selection:bg-[#D2B48C]/30 selection:text-[#feddb3]" id="applet-viewport-root">
+    <div className="min-h-screen bg-[#0c0c0b] flex flex-col justify-between selection:bg-[#D2B48C]/30 selection:text-[#feddb3]" id="applet-viewport-root">
       {/* Sticky Premium Header navigation */}
       <Header
         activeTab={activeTab}
@@ -289,14 +418,22 @@ export default function App() {
             dietPlans={dietPlans}
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
-            userName={user?.displayName || ''}
+            userName={user?.user_metadata?.full_name || user?.email || ''}
             userEmail={user?.email || ''}
+          />
+        )}
+        {activeTab === 'library' && (
+          <PurchaseLibraryView
+            purchases={libraryPurchases}
+            isSignedIn={Boolean(user)}
+            onLogin={handleLogin}
+            onBrowseCookbooks={() => setActiveTab('cookbooks')}
           />
         )}
         {activeTab === 'admin' && (
           isAdmin ? (
-            <AdminDashboard 
-              cookbooks={cookbooks} 
+            <AdminDashboard
+              cookbooks={cookbooks}
               events={events}
               subscribers={subscribers}
               dietPlans={dietPlans}
@@ -304,33 +441,27 @@ export default function App() {
             />
           ) : (
             <div className="min-h-screen flex items-center justify-center p-6 text-center bg-[#0c0c0b]">
-               <div className="space-y-6 max-w-md animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                 <div className="w-16 h-16 bg-[#D2B48C]/10 border border-[#D2B48C]/20 rounded-full flex items-center justify-center mx-auto mb-8">
-                   <div className="w-8 h-8 border-2 border-t-transparent border-[#D2B48C] rounded-full animate-spin" style={{ display: loading ? 'block' : 'none' }}></div>
-                   {!loading && <span className="text-[#D2B48C] font-serif text-2xl">S</span>}
-                 </div>
-                 <h2 className="font-serif text-3xl tracking-tight text-white">Privileged Access</h2>
-                 <p className="font-sans text-xs text-[#c4c7c7]/60 leading-relaxed tracking-wider uppercase">
-                   The management ledger is restricted to authorized personnel. Please authenticate using the Strategic Identity platform.
-                 </p>
-                 <button 
-                   onClick={handleLogin}
-                   disabled={loading}
-                   className="w-full bg-[#D2B48C] text-[#402d10] px-8 py-4 rounded font-bold tracking-widest uppercase text-[10px] hover:bg-[#feddb3] transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                 >
-                   {loading ? 'AUTHENTICATING...' : 'SIGN IN WITH GOOGLE'}
-                 </button>
-               </div>
+              <div className="space-y-6 max-w-md animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                <div className="w-16 h-16 bg-[#D2B48C]/10 border border-[#D2B48C]/20 rounded-full flex items-center justify-center mx-auto mb-8">
+                  <div className="w-8 h-8 border-2 border-t-transparent border-[#D2B48C] rounded-full animate-spin" style={{ display: loading ? 'block' : 'none' }}></div>
+                  {!loading && <span className="text-[#D2B48C] font-serif text-2xl">S</span>}
+                </div>
+                <h2 className="font-serif text-3xl tracking-tight text-white">Privileged Access</h2>
+                <p className="font-sans text-xs text-[#c4c7c7]/60 leading-relaxed tracking-wider uppercase">
+                  The management ledger is restricted to authorized personnel. Please authenticate using the Strategic Identity platform.
+                </p>
+                <button
+                  onClick={handleLogin}
+                  disabled={loading}
+                  className="w-full bg-[#D2B48C] text-[#402d10] px-8 py-4 rounded font-bold tracking-widest uppercase text-[10px] hover:bg-[#feddb3] transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  {loading ? 'AUTHENTICATING...' : 'SIGN IN WITH GOOGLE'}
+                </button>
+              </div>
             </div>
           )
         )}
       </main>
-
-      {/* Standard bottom footer layout */}
-      <Footer 
-        onNavigate={setActiveTab} 
-        onSubscribe={handleSubscribe} 
-      />
 
       {/* Auxiliary Overlays & slide trays */}
       <FullStoryModal
@@ -347,6 +478,8 @@ export default function App() {
         onClearCart={handleClearCart}
         isSignedIn={Boolean(user)}
         onLogin={handleLogin}
+        onPurchaseComplete={handlePurchaseComplete}
+        onOpenLibrary={() => setActiveTab('library')}
       />
     </div>
   );

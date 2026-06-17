@@ -1,4 +1,4 @@
-export type ActiveTab = 'home' | 'cookbooks' | 'coaching' | 'admin';
+export type ActiveTab = 'home' | 'cookbooks' | 'coaching' | 'library' | 'admin';
 
 export interface Subscriber {
   id: string;
@@ -15,6 +15,7 @@ export interface Cookbook {
   oldPrice?: number;
   description: string;
   image: string;
+  pdfUrl?: string;
   tag?: string;
   features: string[];
   macros?: string;
@@ -23,6 +24,12 @@ export interface Cookbook {
 export interface CartItem {
   cookbook: Cookbook;
   quantity: number;
+}
+
+export interface PurchaseRecord {
+  id: string;
+  cookbook: Cookbook;
+  purchasedAt: string;
 }
 
 export interface EventSession {
