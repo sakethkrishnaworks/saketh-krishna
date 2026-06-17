@@ -1,6 +1,8 @@
 import { Cookbook, EventSession, Testimonial } from './types';
+import ReadImg from '../assets/read.jpg';
 
 export const ASSET_IMAGES = {
+  readStory: ReadImg.src,
   heroBg: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDaTdW-PfpkERJ0-mOMrP2aF9MBiYJTk6Syk7dIc0WTPeYeiy4H1PcGG804Qu8IN3e6NrwcbrlByu8dx-CT3plT8qEaG4GX2UejTuW8OppQ_7WmDoN91yzMZptaXFijloAnEHWtpdfFDvEjdnn_9BkPh5U1y1tXeSt6_pfFgCm--FovgrdKNzE75Abna8YGn_hbuZzUMFrLe1rJoKR3SSZ7odjIK1eBfrXpKfsKAd3G3MCUhzh_mbcdQAipR4DoEA0jKR0Q4CsZ6IU',
   chefPortrait: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCUsaBpb4ljbzqKonoOZDk6RCcarWBfzmMGv5sBRTCRr9YAoEWI2SpGB2Bcotuth5rNb3p1XfL4t2_cDz0j0hSAW3zlfCtu6Cv7zVDCIEcB9HlBMrWpU5EsjNTnQH8PhMMz9BFwX4ZgaHJejDltH1XlZoLcVkJAszk6LVMXHyV1GdFJPxQfGdOAvX4jgQoEYEWRckGfzo0GZO04quh9wiax6pLSIg4CxeZd-LQodAiOJspk-kgHdfJ3gmct4L2PSKu9X3nASUZjOB4',
   veganBlueprint: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBBRJnxvdpwYHz7dWg9gWY0lLMqSOsqeNMywTyAl8-yTr1JFVAJbuBvDaOw2NsRua2jK6KvpQBSV5Z7GXqPLqHanFEfvrfobCUVW-7Y7gk91wAHz0xQc1X1D-xKBSL70sH5_XmRgCpanFKw1U8mS0NLVDjKZEF28Yd1lA3HTcR5Z4v-q6VXdmtQtTmGIRkkCeQV7Xib6dHCNQljE4PFOLHiuNkFEUYSV0SKxem4fYl6RGey0D6wT9hTfXMcHNETkyILpxadY93WFVs',

@@ -10,7 +10,7 @@ interface HomeViewProps {
 
 export default function HomeView({ onNavigate, onReadStory }: HomeViewProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-[#0c0c0b]">
+    <div className="min-h-screen flex flex-col bg-[#0c0c0b] pt-14">
       {/* Hero Image - Full width with fade mask like Linktree */}
       <div className="relative w-full" style={{ height: 'calc(100vw - 80px)', maxHeight: '500px' }}>
         <div
