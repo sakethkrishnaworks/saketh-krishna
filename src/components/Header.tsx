@@ -21,6 +21,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
   const adminNavItems = [
+    { id: 'home', label: 'Home', icon: Layout },
     { id: 'overview', label: 'Overview', icon: Layout },
     { id: 'cookbooks', label: 'Cookbooks', icon: ShoppingBag },
     { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
@@ -52,7 +53,11 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
                       <button
                         key={item.id}
                         onClick={() => {
-                          window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: item.id }));
+                          if (item.id === 'home') {
+                            setActiveTab('home');
+                          } else {
+                            window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: item.id }));
+                          }
                           setIsAdminMenuOpen(false);
                         }}
                         className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-sans text-[10px] font-bold tracking-widest uppercase text-[#c4c7c7]/60 hover:text-white hover:bg-white/5 transition-all"

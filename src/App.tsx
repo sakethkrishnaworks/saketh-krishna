@@ -443,6 +443,7 @@ export default function App() {
               subscribers={subscribers}
               dietPlans={dietPlans}
               user={user}
+              onNavigate={setActiveTab}
             />
           ) : (
             <div className="min-h-screen flex items-center justify-center p-6 text-center bg-[#0c0c0b]">

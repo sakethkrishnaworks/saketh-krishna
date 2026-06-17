@@ -31,7 +31,7 @@ import {
   Star,
   Upload
 } from 'lucide-react';
-import { Cookbook, EventSession, Subscriber, DietPlan } from '../types';
+import { ActiveTab, Cookbook, EventSession, Subscriber, DietPlan } from '../types';
 import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 
@@ -41,6 +41,7 @@ interface AdminDashboardProps {
   subscribers: Subscriber[];
   dietPlans: DietPlan[];
   user: User | null | undefined;
+  onNavigate?: (tab: ActiveTab) => void;
 }
 
 const MOCK_SALES_DATA = [
@@ -53,7 +54,7 @@ const MOCK_SALES_DATA = [
   { name: 'Sun', sales: 3490, revenue: 4300 },
 ];
 
-export default function AdminDashboard({ cookbooks, events, subscribers, dietPlans }: AdminDashboardProps) {
+export default function AdminDashboard({ cookbooks, events, subscribers, dietPlans, onNavigate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'cookbooks' | 'schedules' | 'subscribers' | 'dietPlans' | 'settings'>('overview');
   const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
   const [editingEvent, setEditingEvent] = useState<EventSession | null>(null);
@@ -319,7 +320,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   };
 
   return (
-    <div className="relative pt-[100px] pb-24 min-h-screen bg-[#121212]">
+    <div className="relative pt-16 md:pt-[100px] pb-24 min-h-screen bg-[#121212] safe-bottom">
       {/* Admin Sidebar Navigation */}
       <div className="fixed left-6 md:left-12 top-[120px] w-16 md:w-64 z-40 hidden lg:block">
         <div className="glass-panel rounded-2xl p-4 space-y-4">
@@ -328,6 +329,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
           </div>
           <nav className="space-y-1">
             {[
+              { id: 'home', label: 'Home', icon: Layout },
               { id: 'overview', label: 'E-commerce Ops', icon: Layout },
               { id: 'cookbooks', label: 'Cookbooks', icon: ShoppingBag },
               { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
@@ -337,7 +339,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
+                onClick={() => item.id === 'home' ? onNavigate?.('home') : setActiveTab(item.id as any)}
                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-sans text-xs font-bold tracking-widest uppercase transition-all ${activeTab === item.id
                     ? 'bg-[#D2B48C] text-[#402d10] shadow-lg shadow-[#D2B48C]/10'
                     : 'text-[#c4c7c7]/40 hover:text-white hover:bg-white/5'
@@ -351,16 +353,16 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
         </div>
       </div>
 
-      <div className="lg:pl-80 max-w-7xl mx-auto px-6 md:px-16">
+      <div className="lg:pl-80 max-w-7xl mx-auto px-4 md:px-16">
 
         {/* Header Section */}
-        <div className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-2">
+        <div className="mb-6 md:mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-6">
+          <div className="space-y-1 md:space-y-2">
             <div className="flex items-center gap-3">
-              <span className="font-sans text-xs tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">ADMIN STRATEGY PORTAL</span>
+              <span className="font-sans text-[8px] md:text-xs tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">ADMIN STRATEGY PORTAL</span>
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
-            <h1 className="font-serif text-3.5xl md:text-5xl text-white font-bold leading-tight">
+            <h1 className="font-serif text-2xl md:text-5xl text-white font-bold leading-tight">
               {activeTab === 'overview' && 'Executive Control'}
               {activeTab === 'cookbooks' && 'Cookbook Catalog'}
               {activeTab === 'dietPlans' && 'Coaching Catalog'}
@@ -369,7 +371,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               {activeTab === 'settings' && 'Global Configurations'}
             </h1>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
             {activeTab === 'cookbooks' && !isAddingCookbook && (
               <button
                 onClick={() => setIsAddingCookbook(true)}
@@ -573,42 +575,84 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               </div>
             )}
 
-            <div className="glass-panel overflow-hidden rounded-xl border-white/5">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-[#1b1b1b] border-b border-white/5 font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">
-                  <tr>
-                    <th className="px-8 py-4">Status & Title</th>
-                    <th className="px-8 py-4">Units Sold</th>
-                    <th className="px-8 py-4">Price Value</th>
-                    <th className="px-8 py-4 text-right">Action Interface</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {cookbooks.map(book => (
-                    <tr key={book.id} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-4">
-                          <img src={book.image} className="w-10 h-12 rounded bg-zinc-900 object-cover" />
-                          <div>
-                            <div className="font-serif text-sm text-white font-medium">{book.title}</div>
-                            <div className="font-sans text-[9px] text-[#D2B48C] font-bold uppercase">
-                              {book.category}{book.pdfUrl ? ' · PDF READY' : ''}
+            <div className="glass-panel rounded-xl border-white/5 overflow-hidden">
+              {/* Mobile card view */}
+              <div className="md:hidden divide-y divide-white/5">
+                {cookbooks.map(book => (
+                  <div key={book.id} className="p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <img src={book.image} className="w-10 h-12 rounded bg-zinc-900 object-cover flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-serif text-sm text-white font-medium truncate">{book.title}</div>
+                        <div className="font-sans text-[9px] text-[#D2B48C] font-bold uppercase">{book.category}{book.pdfUrl ? ' · PDF READY' : ''}</div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs text-white/40">342 Units</span>
+                      <span className="font-serif font-bold text-emerald-400">₹{book.price.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setEditingCookbook(book)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg hover:bg-[#D2B48C] hover:text-[#402d10] transition-colors text-[10px] font-bold uppercase tracking-widest"><Edit2 className="w-3.5 h-3.5" /> Edit</button>
+                      <button onClick={() => handleDeleteCookbook(book.id)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors text-[10px] font-bold uppercase tracking-widest"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                    </div>
+                  </div>
+                ))}
+                {cookbooks.length === 0 && (
+                  <div className="p-8 text-center">
+                    <div className="flex flex-col items-center gap-4 opacity-20">
+                      <ShoppingBag className="w-12 h-12" />
+                      <p className="font-serif text-xl">No cookbooks found</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[#1b1b1b] border-b border-white/5 font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">
+                    <tr>
+                      <th className="px-8 py-4">Status & Title</th>
+                      <th className="px-8 py-4">Units Sold</th>
+                      <th className="px-8 py-4">Price Value</th>
+                      <th className="px-8 py-4 text-right">Action Interface</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {cookbooks.length > 0 ? cookbooks.map(book => (
+                      <tr key={book.id} className="hover:bg-white/[0.02] transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <img src={book.image} className="w-10 h-12 rounded bg-zinc-900 object-cover flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-serif text-sm text-white font-medium truncate">{book.title}</div>
+                              <div className="font-sans text-[9px] text-[#D2B48C] font-bold uppercase">
+                                {book.category}{book.pdfUrl ? ' · PDF READY' : ''}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5 font-mono text-xs text-white/40">342 Units</td>
-                      <td className="px-8 py-5 font-serif font-bold text-emerald-400">₹{book.price.toLocaleString('en-IN')}</td>
-                      <td className="px-8 py-5">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => setEditingCookbook(book)} className="p-2 bg-white/5 rounded hover:bg-[#D2B48C] hover:text-[#402d10] transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => handleDeleteCookbook(book.id)} className="p-2 bg-white/5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td className="px-8 py-5 font-mono text-xs text-white/40">342 Units</td>
+                        <td className="px-8 py-5 font-serif font-bold text-emerald-400">₹{book.price.toLocaleString('en-IN')}</td>
+                        <td className="px-8 py-5">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditingCookbook(book)} className="p-2 bg-white/5 rounded hover:bg-[#D2B48C] hover:text-[#402d10] transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleDeleteCookbook(book.id)} className="p-2 bg-white/5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-20 text-center">
+                          <div className="flex flex-col items-center gap-4 opacity-20">
+                            <ShoppingBag className="w-12 h-12" />
+                            <p className="font-serif text-xl">No cookbooks found</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -776,59 +820,96 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                   </div>
                 </div>
               </div>
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-[#1b1b1b] border-b border-white/5 font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">
-                  <tr>
-                    <th className="px-8 py-4">Client Email Address</th>
-                    <th className="px-8 py-4">Joined Date</th>
-                    <th className="px-8 py-4">Current Status</th>
-                    <th className="px-8 py-4 text-right">Ledger Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {subscribers.map(sub => (
-                    <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#D2B48C]/10 flex items-center justify-center text-[#D2B48C] font-bold text-xs">
-                            {sub.email.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="font-sans text-sm text-white font-medium">{sub.email}</span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5 font-mono text-xs text-white/40">{sub.date}</td>
-                      <td className="px-8 py-5">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase border ${sub.status === 'Active'
-                            ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20'
-                            : 'bg-red-950/20 text-red-400 border-red-500/20'
-                          }`}>
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => handleToggleSubscriberStatus(sub)} className="p-2 bg-white/5 rounded hover:bg-white/10 transition-colors text-white/40 hover:text-white" title="Toggle Status">
-                            <SettingsIcon className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDeleteSubscriber(sub.id)} className="p-2 bg-white/5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {subscribers.length === 0 && (
+              {/* Mobile card view */}
+              <div className="md:hidden divide-y divide-white/5">
+                {subscribers.map(sub => (
+                  <div key={sub.id} className="p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#D2B48C]/10 flex items-center justify-center text-[#D2B48C] font-bold text-xs flex-shrink-0">
+                        {sub.email.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-sans text-sm text-white font-medium truncate block">{sub.email}</span>
+                        <span className="font-mono text-[10px] text-white/40">{sub.date}</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold tracking-widest uppercase border whitespace-nowrap ${sub.status === 'Active'
+                        ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20'
+                        : 'bg-red-950/20 text-red-400 border-red-500/20'
+                      }`}>
+                        {sub.status}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleToggleSubscriberStatus(sub)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors text-[10px] font-bold uppercase tracking-widest text-white/60 hover:text-white"><SettingsIcon className="w-3.5 h-3.5" /> Toggle</button>
+                      <button onClick={() => handleDeleteSubscriber(sub.id)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors text-[10px] font-bold uppercase tracking-widest"><Trash2 className="w-3.5 h-3.5" /> Remove</button>
+                    </div>
+                  </div>
+                ))}
+                {subscribers.length === 0 && (
+                  <div className="p-8 text-center">
+                    <div className="flex flex-col items-center gap-4 opacity-20">
+                      <Mail className="w-12 h-12" />
+                      <p className="font-serif text-xl">No active leads found in the ledger</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-[#1b1b1b] border-b border-white/5 font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">
                     <tr>
-                      <td colSpan={4} className="px-8 py-20 text-center">
-                        <div className="flex flex-col items-center gap-4 opacity-20">
-                          <Mail className="w-12 h-12" />
-                          <p className="font-serif text-xl">No active leads found in the ledger</p>
-                        </div>
-                      </td>
+                      <th className="px-8 py-4">Client Email Address</th>
+                      <th className="px-8 py-4">Joined Date</th>
+                      <th className="px-8 py-4">Current Status</th>
+                      <th className="px-8 py-4 text-right">Ledger Actions</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {subscribers.map(sub => (
+                      <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#D2B48C]/10 flex items-center justify-center text-[#D2B48C] font-bold text-xs">
+                              {sub.email.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-sans text-sm text-white font-medium">{sub.email}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5 font-mono text-xs text-white/40">{sub.date}</td>
+                        <td className="px-8 py-5">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase border ${sub.status === 'Active'
+                              ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20'
+                              : 'bg-red-950/20 text-red-400 border-red-500/20'
+                            }`}>
+                            {sub.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleToggleSubscriberStatus(sub)} className="p-2 bg-white/5 rounded hover:bg-white/10 transition-colors text-white/40 hover:text-white" title="Toggle Status">
+                              <SettingsIcon className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteSubscriber(sub.id)} className="p-2 bg-white/5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {subscribers.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-20 text-center">
+                          <div className="flex flex-col items-center gap-4 opacity-20">
+                            <Mail className="w-12 h-12" />
+                            <p className="font-serif text-xl">No active leads found in the ledger</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
               <div className="p-6 bg-[#0e0e0e]/50 border-t border-white/5 text-center">
                 <span className="font-sans text-[10px] text-[#c4c7c7]/40 tracking-widest uppercase">END OF MARKETING LEDGER</span>
               </div>
