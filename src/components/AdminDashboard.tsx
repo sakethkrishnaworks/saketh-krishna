@@ -92,6 +92,15 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
     return () => window.cancelAnimationFrame(frameId);
   }, [activeTab]);
 
+  // Listen for admin tab changes from Header hamburger
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setActiveTab((e as CustomEvent).detail as any);
+    };
+    window.addEventListener('admin-tab-change', handler);
+    return () => window.removeEventListener('admin-tab-change', handler);
+  }, []);
+
   // --- CRUD Operations for Diet Plans ---
   const handleSaveDietPlan = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -393,6 +402,8 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
             </button>
           </div>
         </div>
+
+
 
         {/* Tab Content Mapping */}
         {activeTab === 'overview' && (

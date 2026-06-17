@@ -1,6 +1,7 @@
 'use client';
 
-import { LogOut, LogIn, ShoppingBag, ChevronLeft, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, LogIn, ShoppingBag, ChevronLeft, Shield, Menu, Layout, Star, Calendar, Mail, Settings as SettingsIcon } from 'lucide-react';
 import { ActiveTab } from '../types';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -17,6 +18,16 @@ interface HeaderProps {
 
 export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart, user, onLogin, onLogout, isAdmin }: HeaderProps) {
   const isHome = activeTab === 'home';
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+
+  const adminNavItems = [
+    { id: 'overview', label: 'Overview', icon: Layout },
+    { id: 'cookbooks', label: 'Cookbooks', icon: ShoppingBag },
+    { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
+    { id: 'schedules', label: 'Service Catalog', icon: Calendar },
+    { id: 'subscribers', label: 'Subscribers', icon: Mail },
+    { id: 'settings', label: 'System Logic', icon: SettingsIcon },
+  ];
 
   return (
     <header
@@ -25,7 +36,36 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
       <div className="flex items-center justify-between h-14 px-4 max-w-md mx-auto">
         {/* Left: Back or Brand */}
         <div className="flex items-center gap-1 min-w-0">
-          {!isHome ? (
+          {activeTab === 'admin' ? (
+            <div className="relative lg:hidden">
+              <button
+                onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
+                className="flex items-center justify-center w-9 h-9 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] hover:text-white transition-colors"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+              {isAdminMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsAdminMenuOpen(false)} />
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-2 shadow-xl z-50 space-y-1">
+                    {adminNavItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: item.id }));
+                          setIsAdminMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-sans text-[10px] font-bold tracking-widest uppercase text-[#c4c7c7]/60 hover:text-white hover:bg-white/5 transition-all"
+                      >
+                        <item.icon className="w-3.5 h-3.5" />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : !isHome ? (
             <button
               onClick={() => {
                 setActiveTab('home');
