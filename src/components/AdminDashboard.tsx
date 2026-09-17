@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -31,8 +29,10 @@ import {
   Star,
   Upload
 } from 'lucide-react';
-import { ActiveTab, Cookbook, EventSession, Subscriber, DietPlan } from '../types';
+import { ActiveTab, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord } from '../types';
 import { supabase } from '../lib/supabase';
+import { getAuthToken } from '../lib/api';
+import { useToast } from './ToastProvider';
 import { User } from '@supabase/supabase-js';
 
 interface AdminDashboardProps {
@@ -40,21 +40,13 @@ interface AdminDashboardProps {
   events: EventSession[];
   subscribers: Subscriber[];
   dietPlans: DietPlan[];
+  purchases: PurchaseRecord[];
   user: User | null | undefined;
   onNavigate?: (tab: ActiveTab) => void;
 }
 
-const MOCK_SALES_DATA = [
-  { name: 'Mon', sales: 4000, revenue: 2400 },
-  { name: 'Tue', sales: 3000, revenue: 1398 },
-  { name: 'Wed', sales: 2000, revenue: 9800 },
-  { name: 'Thu', sales: 2780, revenue: 3908 },
-  { name: 'Fri', sales: 1890, revenue: 4800 },
-  { name: 'Sat', sales: 2390, revenue: 3800 },
-  { name: 'Sun', sales: 3490, revenue: 4300 },
-];
-
-export default function AdminDashboard({ cookbooks, events, subscribers, dietPlans, onNavigate }: AdminDashboardProps) {
+export default function AdminDashboard({ cookbooks, events, subscribers, dietPlans, purchases, onNavigate }: AdminDashboardProps) {
+  const { toast, confirm } = useToast();
   const [activeTab, setActiveTab] = useState<'overview' | 'cookbooks' | 'schedules' | 'subscribers' | 'dietPlans' | 'settings'>('overview');
   const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
   const [editingEvent, setEditingEvent] = useState<EventSession | null>(null);
@@ -69,6 +61,57 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   // Growth Performance state
   const [activeMetric, setActiveMetric] = useState<'sales' | 'revenue'>('revenue');
   const [isChartReady, setIsChartReady] = useState(false);
+
+  // ---- Real analytics derived from verified purchase records ----
+  const analytics = useMemo(() => {
+    const paid = purchases.filter((p) => (p.status ?? 'paid') === 'paid');
+    const totalRevenue = paid.reduce((sum, p) => sum + Number(p.amount_paid ?? 0), 0);
+    const orderCount = paid.length;
+    const unitsSold = paid.reduce((sum, p) => sum + Number(p.quantity ?? 1), 0);
+    const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0;
+
+    // Revenue for the last 7 days, oldest first.
+    const days: { name: string; revenue: number; sales: number }[] = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const day = new Date();
+      day.setDate(day.getDate() - i);
+      const key = day.toISOString().slice(0, 10);
+      const dayRows = paid.filter((p) => (p.purchased_at ?? '').slice(0, 10) === key);
+      days.push({
+        name: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        revenue: Math.round(dayRows.reduce((sum, p) => sum + Number(p.amount_paid ?? 0), 0)),
+        sales: dayRows.reduce((sum, p) => sum + Number(p.quantity ?? 1), 0),
+      });
+    }
+
+    return { totalRevenue, orderCount, unitsSold, avgOrderValue, series: days };
+  }, [purchases]);
+
+  const handleExportRevenue = () => {
+    const header = 'Order ID,Payment ID,Cookbook,Qty,Amount,Currency,Purchased At,Status';
+    const rows = purchases.map((p) =>
+      [
+        p.razorpay_order_id ?? '',
+        p.razorpay_payment_id ?? '',
+        `"${(p.title ?? '').replace(/"/g, '""')}"`,
+        p.quantity ?? 1,
+        Number(p.amount_paid ?? 0).toFixed(2),
+        p.currency ?? 'INR',
+        p.purchased_at,
+        p.status ?? 'paid',
+      ].join(',')
+    );
+
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `saketh-revenue-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast('Revenue report exported.', 'success');
+  };
 
   useEffect(() => {
     if (editingCookbook) {
@@ -119,27 +162,35 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       popular: formData.get('popular') === 'on',
     };
 
+    if (Number.isNaN(newPlan.price) || newPlan.price < 0) {
+      toast('Please enter a valid numeric price.', 'error');
+      return;
+    }
+
     try {
       const normalizedPlan = Object.fromEntries(Object.entries(newPlan).map(([k, v]) => [k.toLowerCase(), v]));
       const { error } = await supabase.from('dietplans').upsert(normalizedPlan, { onConflict: 'id' });
       if (error) throw error;
       setEditingDietPlan(null);
       setIsAddingDietPlan(false);
+      toast('Diet plan saved successfully.', 'success');
     } catch (err) {
       console.error('Diet plan save failed:', err);
-      window.alert(err instanceof Error ? err.message : 'Failed to save diet plan.');
+      toast(err instanceof Error ? err.message : 'Failed to save diet plan.', 'error');
     }
   };
 
   const handleDeleteDietPlan = async (id: string) => {
-    if (confirm('Delete this diet plan?')) {
-      try {
-        const { error } = await supabase.from('dietplans').delete().eq('id', id);
-        if (error) throw error;
-      } catch (err) {
-        console.error('Diet plan delete failed:', err);
-        window.alert(err instanceof Error ? err.message : 'Failed to delete diet plan.');
-      }
+    const ok = await confirm('Delete this diet plan?');
+    if (!ok) return;
+
+    try {
+      const { error } = await supabase.from('dietplans').delete().eq('id', id);
+      if (error) throw error;
+      toast('Diet plan deleted.', 'success');
+    } catch (err) {
+      console.error('Diet plan delete failed:', err);
+      toast(err instanceof Error ? err.message : 'Failed to delete diet plan.', 'error');
     }
   };
 
@@ -176,10 +227,10 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       if (error) throw error;
       setEditingCookbook(null);
       setIsAddingCookbook(false);
-      window.alert('Cookbook saved successfully.');
+      toast('Cookbook saved successfully.', 'success');
     } catch (err) {
       console.error('Cookbook save failed:', err);
-      window.alert(err instanceof Error ? err.message : 'Failed to save cookbook.');
+      toast(err instanceof Error ? err.message : 'Failed to save cookbook.', 'error');
     }
   };
 
@@ -200,6 +251,9 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       const uploadForm = new FormData();
       uploadForm.append('file', file);
       uploadForm.append('cookbookId', folderId);
+
+      // The route re-verifies admin status server-side from this token.
+      const authToken = await getAuthToken();
 
       const response = await new Promise<{ pdfUrl: string }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -227,6 +281,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
 
         xhr.onerror = () => reject(new Error('Drive upload request failed.'));
         xhr.open('POST', '/api/drive-upload');
+        if (authToken) xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
         xhr.send(uploadForm);
       });
 
@@ -234,7 +289,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       setCookbookPdfUploadProgress(100);
     } catch (err) {
       console.error('Cookbook PDF upload failed:', err);
-      window.alert(err instanceof Error ? err.message : 'Google Drive PDF upload failed.');
+      toast(err instanceof Error ? err.message : 'Google Drive PDF upload failed.', 'error');
     } finally {
       setIsUploadingCookbookPdf(false);
       e.target.value = '';
@@ -242,14 +297,16 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   };
 
   const handleDeleteCookbook = async (id: string) => {
-    if (confirm('Delete this asset? This cannot be undone.')) {
-      try {
-        const { error } = await supabase.from('cookbooks').delete().eq('id', id);
-        if (error) throw error;
-      } catch (err) {
-        console.error('Cookbook delete failed:', err);
-        window.alert(err instanceof Error ? err.message : 'Failed to delete cookbook.');
-      }
+    const ok = await confirm('Delete this asset? This cannot be undone.');
+    if (!ok) return;
+
+    try {
+      const { error } = await supabase.from('cookbooks').delete().eq('id', id);
+      if (error) throw error;
+      toast('Cookbook deleted.', 'success');
+    } catch (err) {
+      console.error('Cookbook delete failed:', err);
+      toast(err instanceof Error ? err.message : 'Failed to delete cookbook.', 'error');
     }
   };
 
@@ -278,33 +335,38 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       if (error) throw error;
       setEditingEvent(null);
       setIsAddingEvent(false);
+      toast('Schedule published to feed.', 'success');
     } catch (err) {
       console.error('Event save failed:', err);
-      window.alert(err instanceof Error ? err.message : 'Failed to save event.');
+      toast(err instanceof Error ? err.message : 'Failed to save event.', 'error');
     }
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (confirm('Delete this coaching schedule?')) {
-      try {
-        const { error } = await supabase.from('events').delete().eq('id', id);
-        if (error) throw error;
-      } catch (err) {
-        console.error('Event delete failed:', err);
-        window.alert(err instanceof Error ? err.message : 'Failed to delete event.');
-      }
+    const ok = await confirm('Delete this coaching schedule?');
+    if (!ok) return;
+
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) throw error;
+      toast('Schedule deleted.', 'success');
+    } catch (err) {
+      console.error('Event delete failed:', err);
+      toast(err instanceof Error ? err.message : 'Failed to delete event.', 'error');
     }
   };
 
   const handleDeleteSubscriber = async (id: string) => {
-    if (confirm('Remove this subscriber?')) {
-      try {
-        const { error } = await supabase.from('subscribers').delete().eq('id', id);
-        if (error) throw error;
-      } catch (err) {
-        console.error('Subscriber delete failed:', err);
-        window.alert(err instanceof Error ? err.message : 'Failed to delete subscriber.');
-      }
+    const ok = await confirm('Remove this subscriber?');
+    if (!ok) return;
+
+    try {
+      const { error } = await supabase.from('subscribers').delete().eq('id', id);
+      if (error) throw error;
+      toast('Subscriber removed.', 'success');
+    } catch (err) {
+      console.error('Subscriber delete failed:', err);
+      toast(err instanceof Error ? err.message : 'Failed to delete subscriber.', 'error');
     }
   };
 
@@ -313,9 +375,10 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
     try {
       const { error } = await supabase.from('subscribers').update({ status: newStatus }).eq('id', sub.id);
       if (error) throw error;
+      toast(`Subscriber marked ${newStatus}.`, 'success');
     } catch (err) {
       console.error('Subscriber status toggle failed:', err);
-      window.alert(err instanceof Error ? err.message : 'Failed to update subscriber status.');
+      toast(err instanceof Error ? err.message : 'Failed to update subscriber status.', 'error');
     }
   };
 
@@ -399,7 +462,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                 <Plus className="w-3.5 h-3.5" /> NEW SCHEDULE
               </button>
             )}
-            <button className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 text-white font-sans text-[10px] font-bold tracking-widest uppercase rounded hover:bg-white/10 transition-colors">
+            <button onClick={handleExportRevenue} className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 text-white font-sans text-[10px] font-bold tracking-widest uppercase rounded hover:bg-white/10 transition-colors">
               <Download className="w-3.5 h-3.5" /> REVENUE DATA
             </button>
           </div>
@@ -410,46 +473,46 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
         {/* Tab Content Mapping */}
         {activeTab === 'overview' && (
           <div className="space-y-12">
-            {/* Analytics Grid */}
+            {/* Analytics Grid — derived from verified purchase records */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="glass-panel p-6 rounded-xl space-y-4 border-l-4 border-l-[#D2B48C]">
                 <div className="flex justify-between items-start">
                   <div className="p-2.5 bg-[#D2B48C]/10 rounded-lg"><DollarSign className="w-5 h-5 text-[#D2B48C]" /></div>
-                  <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold"><TrendingUp className="w-3 h-3" /> +12.5%</span>
+                  <span className="flex items-center gap-1 text-[#c4c7c7]/40 text-[10px] font-bold">LIFETIME</span>
                 </div>
                 <div>
-                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Gross Monthly Revenue</p>
-                  <h3 className="font-serif text-2.5xl text-white font-bold">₹35,00,000.00</h3>
+                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Gross Revenue</p>
+                  <h3 className="font-serif text-2.5xl text-white font-bold">₹{analytics.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
                 </div>
               </div>
               <div className="glass-panel p-6 rounded-xl space-y-4 border-l-4 border-l-emerald-500/50">
                 <div className="flex justify-between items-start">
                   <div className="p-2.5 bg-emerald-500/10 rounded-lg"><Users className="w-5 h-5 text-emerald-400" /></div>
-                  <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold"><TrendingUp className="w-3 h-3" /> +8.2%</span>
+                  <span className="flex items-center gap-1 text-[#c4c7c7]/40 text-[10px] font-bold">{subscribers.length} LEADS</span>
                 </div>
                 <div>
-                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Daily Account Subscriptions</p>
-                  <h3 className="font-serif text-2.5xl text-white font-bold">1,482</h3>
+                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Paid Orders</p>
+                  <h3 className="font-serif text-2.5xl text-white font-bold">{analytics.orderCount.toLocaleString('en-IN')}</h3>
                 </div>
               </div>
               <div className="glass-panel p-6 rounded-xl space-y-4 border-l-4 border-l-blue-500/50">
                 <div className="flex justify-between items-start">
                   <div className="p-2.5 bg-blue-500/10 rounded-lg"><ShoppingBag className="w-5 h-5 text-blue-400" /></div>
-                  <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold"><TrendingUp className="w-3 h-3" /> +15.1%</span>
+                  <span className="flex items-center gap-1 text-[#c4c7c7]/40 text-[10px] font-bold">UNITS</span>
                 </div>
                 <div>
-                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Checkout Converions</p>
-                  <h3 className="font-serif text-2.5xl text-white font-bold">14.2%</h3>
+                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Cookbooks Sold</p>
+                  <h3 className="font-serif text-2.5xl text-white font-bold">{analytics.unitsSold.toLocaleString('en-IN')}</h3>
                 </div>
               </div>
               <div className="glass-panel p-6 rounded-xl space-y-4 border-l-4 border-l-purple-500/50">
                 <div className="flex justify-between items-start">
                   <div className="p-2.5 bg-purple-500/10 rounded-lg"><TrendingUp className="w-5 h-5 text-purple-400" /></div>
-                  <span className="flex items-center gap-1 text-white/20 text-[10px] font-bold">STABLE</span>
+                  <span className="flex items-center gap-1 text-[#c4c7c7]/40 text-[10px] font-bold">AOV</span>
                 </div>
                 <div>
-                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">LTV (Customer Value)</p>
-                  <h3 className="font-serif text-2.5xl text-white font-bold">₹10,500.00</h3>
+                  <p className="font-sans text-[10px] tracking-widest text-[#c4c7c7]/60 uppercase">Avg. Order Value</p>
+                  <h3 className="font-serif text-2.5xl text-white font-bold">₹{analytics.avgOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
                 </div>
               </div>
             </div>
@@ -469,7 +532,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               <div className="h-[350px] min-h-[350px] w-full min-w-0 p-8">
                 {isChartReady && (
                   <ResponsiveContainer width="100%" height={286} minWidth={0} minHeight={0}>
-                    <AreaChart data={MOCK_SALES_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <AreaChart data={analytics.series} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#D2B48C" stopOpacity={0.3} /><stop offset="95%" stopColor="#D2B48C" stopOpacity={0} />
@@ -925,41 +988,69 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <SettingsIcon className="w-5 h-5 text-[#D2B48C]" />
-                    <h3 className="font-serif text-xl text-white">Application Parameters</h3>
+                    <h3 className="font-serif text-xl text-white">Integration Status</h3>
                   </div>
                   <div className="space-y-6 pt-4">
-                    <div className="flex justify-between items-center py-4 border-b border-white/5">
-                      <div>
-                        <div className="text-white text-sm font-medium">Production Checkout</div>
-                        <div className="text-[10px] text-white/40 uppercase">Enable real-time Stripe processing hooks</div>
+                    {[
+                      {
+                        label: 'Razorpay Payments',
+                        hint: 'Checkout key loaded in the browser',
+                        configured: Boolean(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID),
+                      },
+                      {
+                        label: 'Google Drive Delivery',
+                        hint: 'OAuth upload credentials present',
+                        configured: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_DRIVE_REFRESH_TOKEN),
+                      },
+                      {
+                        label: 'Server-side Purchase Recording',
+                        hint: 'Supabase service role key present',
+                        configured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+                      },
+                    ].map((row) => (
+                      <div key={row.label} className="flex justify-between items-center py-4 border-b border-white/5">
+                        <div>
+                          <div className="text-white text-sm font-medium">{row.label}</div>
+                          <div className="text-[10px] text-white/40 uppercase">{row.hint}</div>
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase border ${
+                            row.configured
+                              ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30'
+                              : 'bg-red-950/30 text-red-400 border-red-500/30'
+                          }`}
+                        >
+                          {row.configured ? 'Connected' : 'Not Configured'}
+                        </span>
                       </div>
-                      <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
-                        <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center py-4 border-b border-white/5">
-                      <div>
-                        <div className="text-white text-sm font-medium">Inventory Sync</div>
-                        <div className="text-[10px] text-white/40 uppercase">AWS S3 Image processing pipeline status</div>
-                      </div>
-                      <div className="w-12 h-6 bg-emerald-500/20 border border-emerald-500/40 rounded-full relative p-1 cursor-pointer">
-                        <div className="absolute right-1 top-1 w-4 h-4 bg-emerald-500 rounded-full" />
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <Briefcase className="w-5 h-5 text-[#D2B48C]" />
-                    <h3 className="font-serif text-xl text-white">Security &amp; API Keys</h3>
+                    <h3 className="font-serif text-xl text-white">Gateway Endpoints</h3>
                   </div>
                   <div className="space-y-4 pt-4">
                     <div className="space-y-2">
-                      <label className="text-[9px] font-bold text-[#c4c7c7] uppercase">Integration Endpoint</label>
+                      <label className="text-[9px] font-bold text-[#c4c7c7] uppercase">Order Creation</label>
                       <div className="flex gap-2">
-                        <input disabled value="https://api.gateway.v2.sakethkrishna.com/v1" className="flex-grow bg-[#1b1b1b] border border-white/5 rounded px-4 py-3 text-white/30 text-xs font-mono" />
-                        <button className="px-4 bg-white/5 rounded text-white/40"><ExternalLink className="w-4 h-4" /></button>
+                        <input disabled value="POST /api/create-order" className="flex-grow bg-[#1b1b1b] border border-white/5 rounded px-4 py-3 text-white/30 text-xs font-mono" />
+                        <a
+                          href="/api/create-order"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 bg-white/5 rounded text-white/40 hover:text-white transition-colors flex items-center"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-bold text-[#c4c7c7] uppercase">Signature Verification</label>
+                      <div className="flex gap-2">
+                        <input disabled value="POST /api/verify-payment" className="flex-grow bg-[#1b1b1b] border border-white/5 rounded px-4 py-3 text-white/30 text-xs font-mono" />
                       </div>
                     </div>
                   </div>
@@ -970,11 +1061,12 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-blue-500/10 rounded-full"><TrendingUp className="w-5 h-5 text-blue-400" /></div>
                   <div>
-                    <div className="text-white text-sm font-bold">Cloud Cluster Health</div>
-                    <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">99.98% Uptime - 23ms Latency</div>
+                    <div className="text-white text-sm font-bold">Recorded Orders</div>
+                    <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
+                      {analytics.orderCount} verified · ₹{analytics.totalRevenue.toLocaleString('en-IN')} lifetime
+                    </div>
                   </div>
                 </div>
-                <button className="px-8 py-3 bg-red-500/10 border border-red-500/20 text-red-500 font-sans font-bold text-[10px] tracking-widest uppercase rounded hover:bg-red-500/20 transition-all">Emergency Lockdown</button>
               </div>
             </div>
           </div>

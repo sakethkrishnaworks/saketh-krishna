@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
+import Script from 'next/script';
 import '../src/index.css';
 
 const inter = Inter({
@@ -32,8 +33,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: 'cover',
   themeColor: '#0c0c0b',
 };
@@ -52,10 +53,14 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
       </head>
       <body>
-        {/* Mobile wrapper - adds a subtle frame on desktop */}
-        <div className="mobile-viewport">
-          {children}
-        </div>
+        {children}
+
+        {/* Razorpay Standard Checkout — loaded lazily so it never blocks the
+            first paint, and warmed up before the cart is opened. */}
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

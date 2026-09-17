@@ -18,6 +18,7 @@ interface HeaderProps {
 
 export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart, user, onLogin, onLogout, isAdmin }: HeaderProps) {
   const isHome = activeTab === 'home';
+  const isAdminView = activeTab === 'admin';
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
   const adminNavItems = [
@@ -34,7 +35,7 @@ export default function Header({ activeTab, setActiveTab, cartCount, onOpenCart,
     <header
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-200 safe-top bg-[#0c0c0b]/98 backdrop-blur-lg border-b border-[#2a2a2a]/30 shadow-sm shadow-black/20"
     >
-      <div className="flex items-center justify-between h-14 px-4 max-w-md mx-auto">
+      <div className={`flex items-center justify-between h-14 px-4 mx-auto ${isAdminView ? 'max-w-7xl' : 'max-w-md'}`}>
         {/* Left: Back or Brand */}
         <div className="flex items-center gap-1 min-w-0">
           {activeTab === 'admin' ? (

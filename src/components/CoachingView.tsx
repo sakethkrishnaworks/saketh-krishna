@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Calendar, Phone, Mail, Clock, ArrowRight, UserCheck, Star, Users, CheckCircle, Video, ChevronLeft } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Clock, UserCheck, CheckCircle } from 'lucide-react';
 import { ASSET_IMAGES } from '../data';
 import { EventSession, DietPlan } from '../types';
+import { supabase } from '../lib/supabase';
+import { useToast } from './ToastProvider';
 
 interface CoachingViewProps {
   events: EventSession[];
@@ -12,9 +14,11 @@ interface CoachingViewProps {
   onLogin: () => void;
   userName: string;
   userEmail: string;
+  userId?: string;
 }
 
-export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, userName, userEmail }: CoachingViewProps) {
+export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, userName, userEmail, userId }: CoachingViewProps) {
+  const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
   const [authPrompt, setAuthPrompt] = useState<string>('');
@@ -28,13 +32,30 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
   const [isBookingSubmitting, setIsBookingSubmitting] = useState<boolean>(false);
   const [isBookingSuccess, setIsBookingSuccess] = useState<boolean>(false);
 
-  const availableDays = [
-    { value: '2026-06-01', label: 'Mon, June 1' },
-    { value: '2026-06-02', label: 'Tue, June 2' },
-    { value: '2026-06-03', label: 'Wed, June 3' },
-    { value: '2026-06-04', label: 'Thu, June 4' },
-    { value: '2026-06-05', label: 'Fri, June 5' },
-  ];
+  // Next 5 upcoming weekdays, generated from today so the slots never go stale.
+  const availableDays = useMemo(() => {
+    const days: { value: string; label: string }[] = [];
+    const base = new Date();
+    let added = 0;
+    let offset = 1;
+
+    while (added < 5 && offset < 30) {
+      const candidate = new Date(base);
+      candidate.setDate(base.getDate() + offset);
+      const weekday = candidate.getDay();
+
+      if (weekday !== 0 && weekday !== 6) {
+        days.push({
+          value: candidate.toISOString().slice(0, 10),
+          label: candidate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        });
+        added += 1;
+      }
+      offset += 1;
+    }
+
+    return days;
+  }, []);
 
   const availableTimes = [
     '09:00 AM EST',
@@ -48,7 +69,7 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
     if (!bookingEmail && userEmail) setBookingEmail(userEmail);
   }, [bookingEmail, bookingName, userEmail, userName]);
 
-  const handleRSVP = (eventId: string) => {
+  const handleRSVP = async (eventId: string) => {
     if (!isSignedIn) {
       setAuthPrompt('Please sign in to join coaching calls.');
       onLogin();
@@ -56,21 +77,49 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
     }
     if (bookedSessions.includes(eventId)) return;
     setBookedSessions([...bookedSessions, eventId]);
+
+    // The events table is admin-write-only, so the counter is bumped through a
+    // narrow SECURITY DEFINER RPC.
+    const { error } = await supabase.rpc('increment_event_joined', { event_uuid: eventId });
+    if (error) {
+      console.error('RSVP failed:', error);
+      toast('Could not confirm your spot. Please try again.', 'error');
+    } else {
+      toast("You're on the list. See you there.", 'success');
+    }
   };
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignedIn) {
       setAuthPrompt('Please sign in to book a session.');
       onLogin();
       return;
     }
-    if (!bookingDate || !bookingTime || !bookingName || !bookingEmail) return;
+    if (!bookingDate || !bookingTime || !bookingName || !bookingEmail || !userId) return;
+
     setIsBookingSubmitting(true);
-    setTimeout(() => {
-      setIsBookingSubmitting(false);
+    try {
+      const { error } = await supabase.from('bookings').insert({
+        id: `bk_${userId}_${Date.now()}`,
+        user_id: userId,
+        name: bookingName,
+        email: bookingEmail,
+        plan: selectedPlan,
+        session_date: bookingDate,
+        session_time: bookingTime,
+        status: 'confirmed',
+      });
+
+      if (error) throw error;
       setIsBookingSuccess(true);
-    }, 1500);
+      toast('Consultation booked successfully.', 'success');
+    } catch (err) {
+      console.error('Booking failed:', err);
+      toast('Booking failed. Please try again.', 'error');
+    } finally {
+      setIsBookingSubmitting(false);
+    }
   };
 
   const resetBookingForm = () => {

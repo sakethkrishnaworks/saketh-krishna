@@ -1,5 +1,6 @@
 import { createSign } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '../../../src/lib/serverAuth';
 
 export const runtime = 'nodejs';
 
@@ -151,6 +152,13 @@ async function assertDriveFolderAccess(folderId: string, accessToken: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Only signed-in admins may push files into the owner's Google Drive.
+    // The client cannot forge this — identity is re-derived server-side.
+    const admin = await requireAdmin(request);
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.message }, { status: admin.status });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file');
     const cookbookId = formData.get('cookbookId')?.toString() || 'draft';

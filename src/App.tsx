@@ -1,39 +1,44 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import HomeView from './components/HomeView';
 import CookbooksView from './components/CookbooksView';
 import CoachingView from './components/CoachingView';
 import AdminDashboard from './components/AdminDashboard';
-import Footer from './components/Footer';
 import StoryView from './components/StoryView';
 import CartDrawer from './components/CartDrawer';
 import PurchaseLibraryView from './components/PurchaseLibraryView';
-import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord } from './types';
+import { ToastProvider, useToast } from './components/ToastProvider';
+import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord, PurchasePayload } from './types';
 import { supabase } from './lib/supabase';
+import { isAuthorizedAdminEmail } from './lib/admins';
+import { normalizeCookbook, normalizeEvent, normalizePurchase } from './lib/normalize';
 import { User } from '@supabase/supabase-js';
 
-const AUTHORIZED_ADMIN_EMAILS = ['sakethkrishna.work@gmail.com', 'gokulkannan0205@gmail.com'];
-
-function isAuthorizedAdminEmail(email?: string | null) {
-  return Boolean(email && AUTHORIZED_ADMIN_EMAILS.includes(email.toLowerCase()));
+function cartStorageKey(userId?: string | null): string {
+  // Carts are scoped per account so a shared browser can't leak items between
+  // two signed-in users. Anonymous browsing keeps the shared guest cart.
+  return userId ? `saketh_cart_${userId}` : 'saketh_cart';
 }
 
-export default function App() {
+function AppContent() {
+  const { toast } = useToast();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(true);
 
   // State synchronized with Supabase
   const [cookbooks, setCookbooks] = useState<Cookbook[]>([]);
   const [events, setEvents] = useState<EventSession[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [dietPlans, setDietPlans] = useState<DietPlan[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
@@ -65,15 +70,15 @@ export default function App() {
     };
   }, []);
 
-  // Check Admin Status and Bootstrap primary user
+  // Admin status. Only an `admins` table row grants access. Whitelisted emails
+  // may bootstrap that row once; if RLS or the lookup fails we fail CLOSED —
+  // never fall back to trusting a client-side email list.
   useEffect(() => {
     async function checkAdmin() {
-      if (!user?.email) {
+      if (!user?.id || !user?.email) {
         setIsAdmin(false);
         return;
       }
-
-      const isAuthorizedAdmin = isAuthorizedAdminEmail(user.email);
 
       try {
         const { data, error } = await supabase
@@ -82,12 +87,13 @@ export default function App() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (!error && data) {
+        if (error) throw error;
+        if (data) {
           setIsAdmin(true);
           return;
         }
 
-        if (isAuthorizedAdmin) {
+        if (isAuthorizedAdminEmail(user.email)) {
           const { error: upsertError } = await supabase
             .from('admins')
             .upsert(
@@ -95,22 +101,26 @@ export default function App() {
               { onConflict: 'user_id' }
             );
 
-          if (upsertError) throw upsertError;
+          if (upsertError) {
+            console.error('Admin bootstrap denied:', upsertError.message);
+            setIsAdmin(false);
+            return;
+          }
           setIsAdmin(true);
           return;
         }
 
         setIsAdmin(false);
       } catch (err) {
-        console.error('Admin bootstrap failed:', err);
-        setIsAdmin(isAuthorizedAdmin);
+        console.error('Admin lookup failed:', err);
+        setIsAdmin(false);
       }
     }
 
     void checkAdmin();
   }, [user]);
 
-  // Sync state with Supabase
+  // Sync catalog state with Supabase
   useEffect(() => {
     const fetchCookbooks = async () => {
       const { data, error } = await supabase.from('cookbooks').select('*');
@@ -118,14 +128,7 @@ export default function App() {
         console.error('Cookbooks fetch failed:', error);
         return;
       }
-
-      const normalized = (data ?? []).map((row: any) => ({
-        ...row,
-        pdfUrl: row.pdfUrl ?? row.pdfurl ?? row.pdf_url ?? undefined,
-        oldPrice: row.oldprice ?? row.old_price ?? row.oldPrice ?? undefined,
-      }));
-
-      setCookbooks(normalized as Cookbook[]);
+      setCookbooks((data ?? []).map((row: any) => normalizeCookbook(row as Record<string, any>)));
     };
 
     const fetchEvents = async () => {
@@ -155,31 +158,26 @@ export default function App() {
       setSubscribers((data ?? []) as Subscriber[]);
     };
 
-    const applyRealtimeUpdate = (payload: any, setter: any) => {
-      const normalize = (obj: any) => ({
-        ...obj,
-        pdfUrl: obj?.pdfUrl ?? obj?.pdfurl ?? obj?.pdf_url ?? undefined,
-        oldPrice: obj?.oldprice ?? obj?.old_price ?? obj?.oldPrice ?? undefined,
-      });
+    void fetchCookbooks();
+    void fetchEvents();
+    void fetchDietPlans();
+    setIsCatalogLoading(false);
+    if (isAdmin) void fetchSubscribers();
 
+    const applyRealtimeUpdate = (payload: any, setter: any) => {
       if (payload.eventType === 'INSERT') {
-        setter((prev: any[]) => [...prev, normalize(payload.new)]);
+        setter((prev: any[]) => [...prev, payload.new]);
       } else if (payload.eventType === 'UPDATE') {
-        setter((prev: any[]) => prev.map((item) => (item.id === payload.new.id ? normalize(payload.new) : item)));
+        setter((prev: any[]) => prev.map((item) => (item.id === payload.new.id ? payload.new : item)));
       } else if (payload.eventType === 'DELETE') {
         setter((prev: any[]) => prev.filter((item) => item.id !== payload.old.id));
       }
     };
 
-    void fetchCookbooks();
-    void fetchEvents();
-    void fetchDietPlans();
-    if (isAdmin) void fetchSubscribers();
-
     const cookbooksChannel = supabase
       .channel('realtime-cookbooks')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cookbooks' }, (payload) => {
-        applyRealtimeUpdate(payload, setCookbooks);
+        applyRealtimeUpdate(payload, (prev: any[]) => prev.map((row: any) => normalizeCookbook(row)));
       })
       .subscribe();
 
@@ -215,37 +213,60 @@ export default function App() {
     };
   }, [isAdmin]);
 
-  // Persistence of cart items (luxury client experience)
+  // Load the cart scoped to the current account.
   useEffect(() => {
-    const savedCart = localStorage.getItem('saketh_cart');
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (e) {
-        console.error('Failed to parse cart items:', e);
-      }
+    const key = cartStorageKey(user?.id);
+    try {
+      const savedCart = localStorage.getItem(key);
+      setCartItems(savedCart ? JSON.parse(savedCart) : []);
+    } catch (e) {
+      console.error('Failed to parse cart items:', e);
+      setCartItems([]);
     }
-  }, []);
+  }, [user?.id]);
 
-  useEffect(() => {
+  // Load purchases from the server (single source of truth).
+  const refreshPurchases = useCallback(async () => {
     if (!user?.id) {
       setPurchases([]);
       return;
     }
 
-    const savedPurchases = localStorage.getItem(`saketh_purchases_${user.id}`);
-    if (savedPurchases) {
-      try {
-        setPurchases(JSON.parse(savedPurchases));
-      } catch (e) {
-        console.error('Failed to parse purchases:', e);
-      }
+    let query = supabase.from('purchases').select('*');
+    if (!isAdmin) query = query.eq('user_id', user.id);
+    query = query.order('purchased_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Purchases fetch failed:', error);
+      return;
     }
-  }, [user?.id]);
+    setPurchases((data ?? []).map(normalizePurchase));
+  }, [user?.id, isAdmin]);
+
+  useEffect(() => {
+    void refreshPurchases();
+
+    if (!user?.id) return;
+
+    const purchasesChannel = supabase
+      .channel('realtime-purchases')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchases' }, (payload) => {
+        const row = payload.new as Record<string, unknown>;
+        if (isAdmin || row.user_id === user.id) {
+          setPurchases((prev) => [normalizePurchase(row), ...prev]);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(purchasesChannel);
+    };
+  }, [user?.id, isAdmin, refreshPurchases]);
 
   const handleSaveCart = (updatedCart: CartItem[]) => {
     setCartItems(updatedCart);
-    localStorage.setItem('saketh_cart', JSON.stringify(updatedCart));
+    localStorage.setItem(cartStorageKey(user?.id), JSON.stringify(updatedCart));
   };
 
   const handleAddToCart = (cookbook: Cookbook) => {
@@ -254,12 +275,14 @@ export default function App() {
       return;
     }
 
-    const existingIndex = cartItems.findIndex(item => item.cookbook.id === cookbook.id);
+    const existingIndex = cartItems.findIndex((item) => item.cookbook.id === cookbook.id);
     let updatedCart: CartItem[];
 
     if (existingIndex > -1) {
-      updatedCart = [...cartItems];
-      updatedCart[existingIndex].quantity += 1;
+      // Immutable update — never mutate the existing state object.
+      updatedCart = cartItems.map((item, index) =>
+        index === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
+      );
     } else {
       updatedCart = [...cartItems, { cookbook, quantity: 1 }];
     }
@@ -270,19 +293,19 @@ export default function App() {
 
   const handleUpdateQuantity = (id: string, delta: number) => {
     const updatedCart = cartItems
-      .map(item => {
+      .map((item) => {
         if (item.cookbook.id === id) {
           return { ...item, quantity: item.quantity + delta };
         }
         return item;
       })
-      .filter(item => item.quantity > 0);
+      .filter((item) => item.quantity > 0);
 
     handleSaveCart(updatedCart);
   };
 
   const handleRemoveItem = (id: string) => {
-    const updatedCart = cartItems.filter(item => item.cookbook.id !== id);
+    const updatedCart = cartItems.filter((item) => item.cookbook.id !== id);
     handleSaveCart(updatedCart);
   };
 
@@ -290,46 +313,86 @@ export default function App() {
     handleSaveCart([]);
   };
 
-  const handlePurchaseComplete = (items: CartItem[]) => {
+  const handlePurchaseComplete = async (payload: PurchasePayload) => {
     if (!user?.id) return;
 
-    const purchasedAt = new Date().toISOString();
-    const nextPurchases = items.reduce<PurchaseRecord[]>((records, item) => {
-      const existingIndex = records.findIndex((record) => record.cookbook.id === item.cookbook.id);
-      const record: PurchaseRecord = {
-        id: `${item.cookbook.id}-${Date.now()}`,
-        cookbook: item.cookbook,
-        purchasedAt,
-      };
+    // When the service role key is configured the server already wrote the
+    // authoritative rows; just re-read them.
+    if (payload.recorded) {
+      await refreshPurchases();
+      toast('Payment confirmed. Your cookbooks are now in your library.', 'success');
+      return;
+    }
 
-      if (existingIndex >= 0) {
-        const updatedRecords = [...records];
-        updatedRecords[existingIndex] = { ...records[existingIndex], cookbook: item.cookbook, purchasedAt };
-        return updatedRecords;
-      }
+    const rows = payload.items.map((item) => ({
+      id: `pur_${user.id}_${item.id}_${payload.orderId}`,
+      user_id: user.id,
+      cookbook_id: item.id,
+      title: item.title,
+      image: item.image,
+      pdf_url: item.pdf_url,
+      price: item.price,
+      quantity: item.quantity,
+      amount_paid: payload.amount,
+      currency: payload.currency,
+      razorpay_order_id: payload.orderId,
+      razorpay_payment_id: payload.paymentId,
+      status: 'paid',
+      purchased_at: new Date().toISOString(),
+    }));
 
-      return [...records, record];
-    }, purchases);
+    const { data, error } = await supabase
+      .from('purchases')
+      .upsert(rows, { onConflict: 'id' })
+      .select('*');
 
-    setPurchases(nextPurchases);
-    localStorage.setItem(`saketh_purchases_${user.id}`, JSON.stringify(nextPurchases));
+    if (error) {
+      console.error('Failed to record purchase:', error);
+      toast('Payment succeeded but we could not save your library. Please contact support.', 'error');
+      return;
+    }
+
+    setPurchases((prev) => [...(data ?? []).map(normalizePurchase), ...prev]);
+    toast('Payment confirmed. Your cookbooks are now in your library.', 'success');
   };
 
   const handleSubscribe = async (email: string) => {
-    if (subscribers.some((s) => s.email === email)) return;
-    const subId = `sub-${Date.now()}`;
-    const newSub: Subscriber = {
-      id: subId,
-      email,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Active',
-    };
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return;
 
     try {
-      const { error } = await supabase.from('subscribers').insert(newSub);
-      if (error) throw error;
+      // Case-insensitive existence check so "A@b.com" and "a@b.com" match.
+      const { data: existing } = await supabase
+        .from('subscribers')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+
+      if (existing) {
+        toast("You're already subscribed.", 'info');
+        return;
+      }
+
+      const { error } = await supabase.from('subscribers').insert({
+        id: `sub-${Date.now()}`,
+        email: normalizedEmail,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Active',
+      });
+
+      if (error) {
+        // Race-safe fallback: unique constraint means another request won.
+        if (error.code === '23505') {
+          toast("You're already subscribed.", 'info');
+          return;
+        }
+        throw error;
+      }
+
+      toast('Subscribed! Welcome to the collective.', 'success');
     } catch (err) {
       console.error('Subscription failed:', err);
+      toast('Subscription failed. Please try again.', 'error');
     }
   };
 
@@ -356,7 +419,7 @@ export default function App() {
       console.error('Google sign-in failed:', err);
       const message = err?.message || 'Google sign-in failed. Please try again.';
       setAuthError(message);
-      window.alert(message);
+      toast(message, 'error');
     } finally {
       setIsSigningIn(false);
     }
@@ -366,19 +429,31 @@ export default function App() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Sign out failed:', error);
+      toast('Sign out failed. Please try again.', 'error');
+    } else {
+      setActiveTab('home');
     }
   };
 
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const libraryPurchases = purchases.map((purchase) => {
-    const latestCookbook = cookbooks.find((book) => book.id === purchase.cookbook.id);
+  // Auto-dismiss the auth banner instead of leaving it stuck on screen.
+  useEffect(() => {
+    if (!authError) return;
+    const timer = window.setTimeout(() => setAuthError(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [authError]);
 
-    return latestCookbook ? { ...purchase, cookbook: latestCookbook } : purchase;
-  });
+  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const isAdminView = activeTab === 'admin';
 
   return (
-    <div className="min-h-screen bg-[#0c0c0b] flex flex-col justify-between selection:bg-[#D2B48C]/30 selection:text-[#feddb3]" id="applet-viewport-root">
-      {/* Sticky Premium Header navigation */}
+    <div
+      id="applet-viewport-root"
+      className={
+        isAdminView
+          ? 'admin-viewport min-h-dvh bg-[#0c0c0b] flex flex-col selection:bg-[#D2B48C]/30 selection:text-[#feddb3]'
+          : 'mobile-viewport min-h-dvh bg-[#0c0c0b] flex flex-col justify-between selection:bg-[#D2B48C]/30 selection:text-[#feddb3]'
+      }
+    >
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -396,17 +471,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Main viewport segment (with elegant screen switcher) */}
       <main className="flex-grow">
         {activeTab === 'home' && (
-          <HomeView
-            onNavigate={setActiveTab}
-          />
+          <HomeView onNavigate={setActiveTab} />
         )}
         {activeTab === 'story' && (
-          <StoryView
-            onNavigate={setActiveTab}
-          />
+          <StoryView onNavigate={setActiveTab} />
         )}
         {activeTab === 'cookbooks' && (
           <CookbooksView
@@ -415,6 +485,7 @@ export default function App() {
             onSubscribe={handleSubscribe}
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
+            isLoading={isCatalogLoading}
           />
         )}
         {activeTab === 'coaching' && (
@@ -425,23 +496,26 @@ export default function App() {
             onLogin={handleLogin}
             userName={user?.user_metadata?.full_name || user?.email || ''}
             userEmail={user?.email || ''}
+            userId={user?.id}
           />
         )}
         {activeTab === 'library' && (
           <PurchaseLibraryView
-            purchases={libraryPurchases}
+            purchases={purchases}
+            cookbooks={cookbooks}
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
             onBrowseCookbooks={() => setActiveTab('cookbooks')}
           />
         )}
-        {activeTab === 'admin' && (
-          isAdmin ? (
+        {isAdminView &&
+          (isAdmin ? (
             <AdminDashboard
               cookbooks={cookbooks}
               events={events}
               subscribers={subscribers}
               dietPlans={dietPlans}
+              purchases={purchases}
               user={user}
               onNavigate={setActiveTab}
             />
@@ -465,11 +539,9 @@ export default function App() {
                 </button>
               </div>
             </div>
-          )
-        )}
+          ))}
       </main>
 
-      {/* Auxiliary Overlays & slide trays */}
       <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
@@ -478,10 +550,20 @@ export default function App() {
         onRemoveItem={handleRemoveItem}
         onClearCart={handleClearCart}
         isSignedIn={Boolean(user)}
+        userName={user?.user_metadata?.full_name || user?.email || ''}
+        userEmail={user?.email || ''}
         onLogin={handleLogin}
         onPurchaseComplete={handlePurchaseComplete}
         onOpenLibrary={() => setActiveTab('library')}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }

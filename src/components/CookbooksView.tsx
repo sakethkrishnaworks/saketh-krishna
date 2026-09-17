@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, ShoppingCart, Check, BookOpen, Mail, ArrowRight, ChevronLeft, Search } from 'lucide-react';
-import { ASSET_IMAGES } from '../data';
+import { ShoppingCart, Check, Mail } from 'lucide-react';
 import { Cookbook } from '../types';
-import { ActiveTab } from '../types';
 
 interface CookbooksViewProps {
   cookbooks: Cookbook[];
@@ -12,9 +10,10 @@ interface CookbooksViewProps {
   onSubscribe: (email: string) => void;
   isSignedIn: boolean;
   onLogin: () => void;
+  isLoading?: boolean;
 }
 
-export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isSignedIn, onLogin }: CookbooksViewProps) {
+export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isSignedIn, onLogin, isLoading }: CookbooksViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [subscribedEmail, setSubscribedEmail] = useState<string>('');
   const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
@@ -95,7 +94,23 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isS
 
         {/* Cookbooks List */}
         <div className="flex flex-col gap-3.5">
-          {filteredCookbooks.map((book) => (
+          {isLoading
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={`skeleton-${index}`}
+                  className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden animate-pulse"
+                >
+                  <div className="flex items-stretch">
+                    <div className="w-24 h-24 md:w-28 md:h-28 flex-shrink-0 bg-[#2a2a2a]" />
+                    <div className="flex-1 min-w-0 p-4 space-y-2.5">
+                      <div className="h-3.5 bg-[#2a2a2a] rounded w-3/4" />
+                      <div className="h-2.5 bg-[#2a2a2a] rounded w-full" />
+                      <div className="h-2.5 bg-[#2a2a2a] rounded w-1/2" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            : filteredCookbooks.map((book) => (
             <div
               key={book.id}
               className="w-full bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] hover:border-[#D2B48C]/30 rounded-xl transition-all duration-200 overflow-hidden"

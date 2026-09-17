@@ -44,16 +44,6 @@ const cookbooks = [
     pdfUrl: '',
   },
   {
-    id: 'test-cookbook-pdf',
-    title: 'Test Cookbook PDF',
-    category: 'high-protein',
-    price: 0,
-    description: 'A temporary test cookbook used for validating PDF links',
-    image: 'https://images.unsplash.com/photo-1598511720359-5f9f2e3f8f3c',
-    features: ['test'],
-    pdfUrl: 'https://drive.google.com/file/d/1NEkXnXbyNxqrypaUQBIiO2-e1H9npbpk/view?usp=share_link',
-  },
-  {
     id: 'air-fryer-recipes',
     title: 'Modern Air Fryer Recipes',
     category: 'air-fryer',
@@ -165,9 +155,7 @@ async function main() {
     await seedTable('cookbooks', cookbooks);
     await seedTable('events', events);
     await seedTable('dietplans', dietPlans);
-    await seedTable('subscribers', [
-      { id: 'sub-demo-1', email: 'newmember@example.com', date: '2026-06-05', status: 'Active' },
-    ]);
+    await seedTable('subscribers', []);
     await seedAdmins();
     console.log('Supabase seed complete.');
   } catch (error) {

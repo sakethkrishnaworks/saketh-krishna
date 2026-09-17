@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, CreditCard, Sparkles, BookOpen, CheckCircle } from 'lucide-react';
-import { CartItem } from '../types';
+import { X, Trash2, Plus, Minus, Sparkles, BookOpen, CheckCircle, Loader2 } from 'lucide-react';
+import { CartItem, PurchasePayload } from '../types';
+import { authedFetch } from '../lib/api';
+import { evaluatePromo, paiseToRupees } from '../lib/promo';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -12,8 +14,10 @@ interface CartDrawerProps {
   onRemoveItem: (id: string) => void;
   onClearCart: () => void;
   isSignedIn: boolean;
+  userName: string;
+  userEmail: string;
   onLogin: () => void;
-  onPurchaseComplete: (items: CartItem[]) => void;
+  onPurchaseComplete: (payload: PurchasePayload) => Promise<void>;
   onOpenLibrary: () => void;
 }
 
@@ -25,53 +29,139 @@ export default function CartDrawer({
   onRemoveItem,
   onClearCart,
   isSignedIn,
+  userName,
+  userEmail,
   onLogin,
   onPurchaseComplete,
   onOpenLibrary,
 }: CartDrawerProps) {
   const [promoCode, setPromoCode] = useState<string>('');
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [promoApplied, setPromoApplied] = useState<boolean>(false);
   const [promoError, setPromoError] = useState<string>('');
   const [isProcessingCheckout, setIsProcessingCheckout] = useState<boolean>(false);
+  const [checkoutError, setCheckoutError] = useState<string>('');
   const [isCheckoutSuccess, setIsCheckoutSuccess] = useState<boolean>(false);
   const [downloadLinkCount, setDownloadLinkCount] = useState<number>(0);
+  const [successItems, setSuccessItems] = useState<CartItem[]>([]);
 
   if (!isOpen) return null;
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.cookbook.price * item.quantity, 0);
-  const appliedDiscount = subtotal * discountAmount;
+  const promo = evaluatePromo(promoApplied ? promoCode : null);
+  const appliedDiscount = subtotal * promo.rate;
   const total = Math.max(0, subtotal - appliedDiscount);
 
   const handleApplyPromo = (e: React.FormEvent) => {
     e.preventDefault();
     setPromoError('');
-    const code = promoCode.trim().toUpperCase();
 
-    if (code === 'SAKETH20' || code === 'WELCOME20') {
-      setDiscountAmount(0.2);
-      setPromoApplied(true);
-    } else if (code === 'HEALTHY10') {
-      setDiscountAmount(0.1);
+    const result = evaluatePromo(promoCode);
+    if (result.valid) {
       setPromoApplied(true);
     } else {
+      setPromoApplied(false);
       setPromoError('Invalid code. Try SAKETH20');
     }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cartItems.length === 0) return;
     if (!isSignedIn) {
       onLogin();
       return;
     }
+
+    if (typeof window === 'undefined' || !window.Razorpay) {
+      setCheckoutError('Payment gateway is still loading. Please try again in a moment.');
+      return;
+    }
+
     setIsProcessingCheckout(true);
-    setTimeout(() => {
+    setCheckoutError('');
+
+    try {
+      // 1. Create the order. The server computes the final amount from live
+      //    prices + the promo code, so it is authoritative.
+      const createResponse = await authedFetch('/api/create-order', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: cartItems.map((item) => ({ id: item.cookbook.id, quantity: item.quantity })),
+          promo: promoApplied ? promoCode.trim().toUpperCase() : undefined,
+        }),
+      });
+
+      const order = await createResponse.json();
+      if (!createResponse.ok || !order.order_id) {
+        throw new Error(order.error || 'Failed to create your order. Please try again.');
+      }
+
+      // 2. Open the Razorpay Standard Checkout modal.
+      await new Promise<void>((resolve, reject) => {
+        const options = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.order_id,
+          name: 'Saketh Krishna',
+          description: `${cartItems.length} cookbook${cartItems.length > 1 ? 's' : ''}`,
+          prefill: { name: userName, email: userEmail },
+          theme: { color: '#D2B48C' },
+          handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+            try {
+              // 3. Verify the signature server-side.
+              const verifyResponse = await authedFetch('/api/verify-payment', {
+                method: 'POST',
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+
+              const verified = await verifyResponse.json();
+              if (!verifyResponse.ok || !verified.verified) {
+                throw new Error(verified.error || 'We could not confirm your payment. Contact support if you were charged.');
+              }
+
+              // 4. Record the library entries (server may already have done it).
+              await onPurchaseComplete({
+                orderId: verified.order_id,
+                paymentId: verified.payment_id,
+                amount: paiseToRupees(verified.amount),
+                currency: verified.currency,
+                items: verified.items ?? [],
+                recorded: Boolean(verified.recorded),
+              });
+
+              setDownloadLinkCount(order.items?.length ?? cartItems.length);
+              setSuccessItems(cartItems);
+              setIsCheckoutSuccess(true);
+              resolve();
+            } catch (verifyError) {
+              reject(verifyError);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              setCheckoutError('Payment cancelled. Your cart is saved.');
+              resolve();
+            },
+          },
+        };
+
+        const razorpay = new window.Razorpay(options);
+        razorpay.on('payment.failed', (failure: { error: { description?: string } }) => {
+          setCheckoutError(failure.error?.description || 'Payment failed. Please try another method.');
+          resolve();
+        });
+        razorpay.open();
+      });
+    } catch (error) {
+      console.error('Checkout failed:', error);
+      setCheckoutError(error instanceof Error ? error.message : 'Checkout failed. Please try again.');
+    } finally {
       setIsProcessingCheckout(false);
-      onPurchaseComplete(cartItems);
-      setIsCheckoutSuccess(true);
-      setDownloadLinkCount(cartItems.length);
-    }, 2000);
+    }
   };
 
   const handleCloseSuccess = () => {
@@ -80,7 +170,7 @@ export default function CartDrawer({
     onClose();
     setPromoCode('');
     setPromoApplied(false);
-    setDiscountAmount(0);
+    setCheckoutError('');
   };
 
   return (
@@ -112,12 +202,12 @@ export default function CartDrawer({
                 <CheckCircle className="w-7 h-7 text-emerald-400" />
               </div>
               <div>
-                <h3 className="font-serif text-xl text-white font-semibold mb-1">Purchase Successful</h3>
+                <h3 className="font-serif text-xl text-white font-semibold mb-1">Payment Successful</h3>
                 <p className="font-sans text-xs text-[#a0a0a0]">Your cookbooks are ready to read.</p>
               </div>
               <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3 text-left">
                 <span className="font-sans text-[9px] tracking-wider text-[#D2B48C] font-semibold uppercase">Your Items ({downloadLinkCount})</span>
-                {cartItems.map((item) => (
+                {successItems.map((item) => (
                   <div key={item.cookbook.id} className="flex justify-between items-center text-xs pb-2 border-b border-[#2a2a2a] last:border-none last:pb-0">
                     <span className="text-white font-medium truncate max-w-[70%]">{item.cookbook.title}</span>
                     <button onClick={() => { handleCloseSuccess(); onOpenLibrary(); }}
@@ -183,9 +273,9 @@ export default function CartDrawer({
                 {promoApplied ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 rounded-lg text-xs text-emerald-400 flex justify-between items-center">
                     <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase">
-                      <Sparkles className="w-3.5 h-3.5" /> 20% Off Applied
+                      <Sparkles className="w-3.5 h-3.5" /> {promo.label} Applied
                     </div>
-                    <button onClick={() => { setPromoApplied(false); setDiscountAmount(0); }}
+                    <button onClick={() => { setPromoApplied(false); setPromoCode(''); }}
                       className="text-[#D2B48C] underline text-[10px]">Remove</button>
                   </div>
                 ) : (
@@ -208,6 +298,11 @@ export default function CartDrawer({
         {/* Footer with Totals */}
         {!isCheckoutSuccess && cartItems.length > 0 && (
           <div className="border-t border-[#2a2a2a] px-5 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] space-y-4 bg-[#0c0c0b]">
+            {checkoutError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-950/40 px-4 py-3 text-[11px] text-red-300 leading-relaxed">
+                {checkoutError}
+              </div>
+            )}
             <div className="space-y-1.5 text-xs font-sans">
               <div className="flex justify-between text-[#a0a0a0]">
                 <span>Subtotal</span>
@@ -215,7 +310,7 @@ export default function CartDrawer({
               </div>
               {promoApplied && (
                 <div className="flex justify-between text-emerald-400">
-                  <span>Discount (20%)</span>
+                  <span>Discount ({promo.label})</span>
                   <span>-₹{appliedDiscount.toLocaleString('en-IN')}</span>
                 </div>
               )}
@@ -225,8 +320,14 @@ export default function CartDrawer({
               </div>
             </div>
             <button onClick={handleCheckout} disabled={isProcessingCheckout}
-              className="w-full py-3.5 bg-[#D2B48C] hover:bg-[#feddb3] disabled:opacity-40 text-[#0c0c0b] font-sans font-bold text-xs tracking-wider rounded-lg transition-all uppercase">
-              {isProcessingCheckout ? 'Processing...' : isSignedIn ? 'Checkout' : 'Sign In to Checkout'}
+              className="w-full py-3.5 bg-[#D2B48C] hover:bg-[#feddb3] disabled:opacity-40 text-[#0c0c0b] font-sans font-bold text-xs tracking-wider rounded-lg transition-all uppercase flex items-center justify-center gap-2">
+              {isProcessingCheckout ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
+              ) : isSignedIn ? (
+                `Pay ₹${total.toLocaleString('en-IN')}`
+              ) : (
+                'Sign In to Checkout'
+              )}
             </button>
           </div>
         )}
