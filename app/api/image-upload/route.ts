@@ -4,10 +4,12 @@ import { getDriveAccessToken, makeDriveFilePublic, uploadFileToDrive } from '../
 
 export const runtime = 'nodejs';
 
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+
 export async function POST(request: NextRequest) {
   try {
     // Only signed-in admins may push files into the owner's Google Drive.
-    // The client cannot forge this — identity is re-derived server-side.
     const admin = await requireAdmin(request);
     if (!admin.ok) {
       return NextResponse.json({ error: admin.message }, { status: admin.status });
@@ -18,22 +20,25 @@ export async function POST(request: NextRequest) {
     const cookbookId = formData.get('cookbookId')?.toString() || 'draft';
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'No PDF file was provided.' }, { status: 400 });
+      return NextResponse.json({ error: 'No image file was provided.' }, { status: 400 });
     }
 
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'Only PDF files are supported.' }, { status: 400 });
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Unsupported image format. Use JPG, PNG, WebP, or GIF.' },
+        { status: 400 }
+      );
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      return NextResponse.json({ error: 'PDF must be 25MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_IMAGE_BYTES) {
+      return NextResponse.json({ error: 'Image must be 10MB or smaller.' }, { status: 400 });
     }
 
     const driveFile = await uploadFileToDrive({
       file,
       fileName: file.name,
-      mimeType: 'application/pdf',
-      appProperties: { cookbookId },
+      mimeType: file.type,
+      appProperties: { cookbookId, kind: 'cover' },
     });
 
     await makeDriveFilePublic(driveFile.id, await getDriveAccessToken());
@@ -41,15 +46,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: driveFile.id,
       name: driveFile.name,
-      pdfUrl: `https://drive.google.com/file/d/${driveFile.id}/view`,
-      previewUrl: `https://drive.google.com/file/d/${driveFile.id}/preview`,
+      imageUrl: `https://drive.google.com/thumbnail?id=${driveFile.id}&sz=w1000`,
       webViewLink: driveFile.webViewLink,
       webContentLink: driveFile.webContentLink,
     });
   } catch (error) {
-    console.error('Google Drive upload failed:', error);
+    console.error('Image upload failed:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Google Drive upload failed.' },
+      { error: error instanceof Error ? error.message : 'Image upload failed.' },
       { status: 500 }
     );
   }

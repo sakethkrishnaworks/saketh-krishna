@@ -27,13 +27,25 @@ import {
   ExternalLink,
   Mail,
   Star,
-  Upload
+  Upload,
+  ArrowLeft
 } from 'lucide-react';
 import { ActiveTab, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord } from '../types';
 import { supabase } from '../lib/supabase';
 import { getAuthToken } from '../lib/api';
 import { useToast } from './ToastProvider';
 import { User } from '@supabase/supabase-js';
+
+// Shared by the desktop sidebar and the mobile options grid so the two can
+// never show different sets of sections.
+const ADMIN_NAV_ITEMS = [
+  { id: 'overview', label: 'E-commerce Ops', description: 'Revenue, orders & growth', icon: Layout },
+  { id: 'cookbooks', label: 'Cookbooks', description: 'Catalog & PDF delivery', icon: ShoppingBag },
+  { id: 'dietPlans', label: 'Coaching Plans', description: 'Diet plan catalog', icon: Star },
+  { id: 'schedules', label: 'Service Catalog', description: 'Workshops & events', icon: Calendar },
+  { id: 'subscribers', label: 'Subscribers', description: 'Mailing list ledger', icon: Mail },
+  { id: 'settings', label: 'System Logic', description: 'Integration status', icon: SettingsIcon },
+] as const;
 
 interface AdminDashboardProps {
   cookbooks: Cookbook[];
@@ -57,6 +69,13 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   const [cookbookPdfUrl, setCookbookPdfUrl] = useState('');
   const [isUploadingCookbookPdf, setIsUploadingCookbookPdf] = useState(false);
   const [cookbookPdfUploadProgress, setCookbookPdfUploadProgress] = useState(0);
+  const [cookbookImageUrl, setCookbookImageUrl] = useState('');
+  const [isUploadingCookbookImage, setIsUploadingCookbookImage] = useState(false);
+  const [cookbookImageUploadProgress, setCookbookImageUploadProgress] = useState(0);
+
+  // Mobile navigation: the admin shell shows an options grid first; tapping one
+  // opens that section, and an in-page Back button returns to the grid.
+  const [mobileSection, setMobileSection] = useState<typeof ADMIN_NAV_ITEMS[number]['id'] | null>(null);
 
   // Growth Performance state
   const [activeMetric, setActiveMetric] = useState<'sales' | 'revenue'>('revenue');
@@ -116,12 +135,15 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
   useEffect(() => {
     if (editingCookbook) {
       setCookbookPdfUrl(editingCookbook.pdfUrl || '');
+      setCookbookImageUrl(editingCookbook.image || '');
       return;
     }
 
     if (isAddingCookbook) {
       setCookbookPdfUrl('');
       setCookbookPdfUploadProgress(0);
+      setCookbookImageUrl('');
+      setCookbookImageUploadProgress(0);
     }
   }, [editingCookbook, isAddingCookbook]);
 
@@ -135,15 +157,6 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
 
     return () => window.cancelAnimationFrame(frameId);
   }, [activeTab]);
-
-  // Listen for admin tab changes from Header hamburger
-  useEffect(() => {
-    const handler = (e: Event) => {
-      setActiveTab((e as CustomEvent).detail as any);
-    };
-    window.addEventListener('admin-tab-change', handler);
-    return () => window.removeEventListener('admin-tab-change', handler);
-  }, []);
 
   // --- CRUD Operations for Diet Plans ---
   const handleSaveDietPlan = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -210,7 +223,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       title: formData.get('title') as string,
       description: formData.get('description') as string,
       price: parseFloat(formData.get('price') as string),
-      image: (formData.get('image') as string) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+      image: cookbookImageUrl.trim() || (formData.get('image') as string) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
       category: formData.get('category') as 'high-protein' | 'vegetarian' | 'air-fryer',
       features: rawFeatures.split(',').map((f) => f.trim()).filter(Boolean),
       ...(pdfUrl ? { pdfUrl } : {}),
@@ -292,6 +305,66 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
       toast(err instanceof Error ? err.message : 'Google Drive PDF upload failed.', 'error');
     } finally {
       setIsUploadingCookbookPdf(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleCookbookImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast('Please select an image file (JPG, PNG, WebP, or GIF).', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    setCookbookImageUploadProgress(0);
+    setIsUploadingCookbookImage(true);
+    try {
+      const folderId = editingCookbook?.id || `draft-${Date.now()}`;
+      const uploadForm = new FormData();
+      uploadForm.append('file', file);
+      uploadForm.append('cookbookId', folderId);
+
+      const authToken = await getAuthToken();
+
+      const response = await new Promise<{ imageUrl: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const progress = Math.min(95, Math.round((event.loaded / event.total) * 95));
+          setCookbookImageUploadProgress(progress);
+        };
+
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300 && data.imageUrl) {
+              resolve(data);
+              return;
+            }
+            reject(new Error(data.error || `Image upload failed with status ${xhr.status}.`));
+          } catch (parseError) {
+            reject(parseError);
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Image upload request failed.'));
+        xhr.open('POST', '/api/image-upload');
+        if (authToken) xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        xhr.send(uploadForm);
+      });
+
+      setCookbookImageUrl(response.imageUrl);
+      setCookbookImageUploadProgress(100);
+      toast('Cover image uploaded.', 'success');
+    } catch (err) {
+      console.error('Cookbook image upload failed:', err);
+      toast(err instanceof Error ? err.message : 'Cover image upload failed.', 'error');
+    } finally {
+      setIsUploadingCookbookImage(false);
       e.target.value = '';
     }
   };
@@ -384,25 +457,24 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
 
   return (
     <div className="relative pt-16 md:pt-[100px] pb-24 min-h-screen bg-[#121212] safe-bottom">
-      {/* Admin Sidebar Navigation */}
+      {/* Admin Sidebar Navigation (desktop) */}
       <div className="fixed left-6 md:left-12 top-[120px] w-16 md:w-64 z-40 hidden lg:block">
         <div className="glass-panel rounded-2xl p-4 space-y-4">
           <div className="px-4 py-2 mb-4">
             <span className="font-sans text-[10px] tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">MANAGEMENT</span>
           </div>
           <nav className="space-y-1">
-            {[
-              { id: 'home', label: 'Home', icon: Layout },
-              { id: 'overview', label: 'E-commerce Ops', icon: Layout },
-              { id: 'cookbooks', label: 'Cookbooks', icon: ShoppingBag },
-              { id: 'dietPlans', label: 'Coaching Plans', icon: Star },
-              { id: 'schedules', label: 'Service Catalog', icon: Calendar },
-              { id: 'subscribers', label: 'Subscribers', icon: Mail },
-              { id: 'settings', label: 'System Logic', icon: SettingsIcon },
-            ].map((item) => (
+            <button
+              onClick={() => onNavigate?.('home')}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-sans text-xs font-bold tracking-widest uppercase transition-all text-[#c4c7c7]/40 hover:text-white hover:bg-white/5"
+            >
+              <Layout className="w-4 h-4" />
+              <span className="hidden md:inline">Home</span>
+            </button>
+            {ADMIN_NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
-                onClick={() => item.id === 'home' ? onNavigate?.('home') : setActiveTab(item.id as any)}
+                onClick={() => setActiveTab(item.id as any)}
                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-sans text-xs font-bold tracking-widest uppercase transition-all ${activeTab === item.id
                     ? 'bg-[#D2B48C] text-[#402d10] shadow-lg shadow-[#D2B48C]/10'
                     : 'text-[#c4c7c7]/40 hover:text-white hover:bg-white/5'
@@ -416,7 +488,60 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
         </div>
       </div>
 
-      <div className="lg:pl-80 max-w-7xl mx-auto px-4 md:px-16">
+      {/* Mobile section picker — replaces the old hamburger. Shown only while
+          no section is open; tapping a card opens it, and the Back button in
+          the section header returns here. */}
+      {!mobileSection && (
+        <div className="lg:hidden max-w-7xl mx-auto px-4 md:px-16">
+          <div className="mb-8 space-y-2">
+            <span className="font-sans text-[8px] tracking-[0.3em] text-[#D2B48C] font-semibold block uppercase">
+              ADMIN STRATEGY PORTAL
+            </span>
+            <h1 className="font-serif text-2xl text-white font-bold leading-tight">Management</h1>
+            <p className="font-sans text-xs text-[#c4c7c7]/60">Choose a section to manage.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {ADMIN_NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setMobileSection(item.id);
+                  setActiveTab(item.id as any);
+                }}
+                className="glass-panel rounded-xl p-5 flex items-start gap-4 text-left transition-all hover:border-[#D2B48C]/30 active:scale-[0.98]"
+              >
+                <div className="p-2.5 bg-[#D2B48C]/10 rounded-lg flex-shrink-0">
+                  <item.icon className="w-5 h-5 text-[#D2B48C]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-serif text-sm text-white font-semibold">{item.label}</div>
+                  <div className="font-sans text-[10px] text-[#c4c7c7]/50 uppercase tracking-wider mt-0.5">
+                    {item.description}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => onNavigate?.('home')}
+            className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 bg-white/5 border border-white/10 text-white font-sans text-[10px] font-bold tracking-widest uppercase rounded-lg hover:bg-white/10 transition-colors"
+          >
+            <Layout className="w-3.5 h-3.5" /> Back to Site
+          </button>
+        </div>
+      )}
+
+      <div className={`${mobileSection ? 'block' : 'hidden'} lg:block lg:pl-80 max-w-7xl mx-auto px-4 md:px-16`}>
+        {/* Mobile back button — returns to the section picker */}
+        {mobileSection && (
+          <button
+            onClick={() => setMobileSection(null)}
+            className="lg:hidden mb-6 flex items-center gap-1.5 text-[#a0a0a0] hover:text-white transition-colors min-h-[44px] active:scale-95"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="font-sans text-xs font-medium tracking-wider uppercase">All Sections</span>
+          </button>
+        )}
 
         {/* Header Section */}
         <div className="mb-6 md:mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-6">
@@ -575,9 +700,56 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
                     <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Description</label>
                     <textarea name="description" defaultValue={editingCookbook?.description} required className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none h-24" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Image URL</label>
-                    <input name="image" defaultValue={editingCookbook?.image} className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none" />
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Cover Image</label>
+                    <div className="flex flex-col gap-3 md:flex-row">
+                      <input
+                        name="image"
+                        value={cookbookImageUrl}
+                        onChange={(e) => setCookbookImageUrl(e.target.value)}
+                        placeholder="Upload from device or paste an image URL"
+                        className="w-full bg-[#1b1b1b] border border-white/10 rounded px-4 py-3 text-white text-sm focus:border-[#D2B48C] outline-none"
+                      />
+                      <label className="flex min-w-fit cursor-pointer items-center justify-center gap-2 rounded bg-white/5 px-5 py-3 font-sans text-[10px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-white/10">
+                        <Upload className="w-3.5 h-3.5" />
+                        {isUploadingCookbookImage ? `${cookbookImageUploadProgress}%` : 'Upload Image'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          onChange={handleCookbookImageUpload}
+                          disabled={isUploadingCookbookImage}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    {(isUploadingCookbookImage || cookbookImageUploadProgress > 0) && (
+                      <div className="space-y-2 rounded-lg border border-white/10 bg-[#151515] p-3">
+                        <div className="flex justify-between font-sans text-[10px] font-bold uppercase tracking-widest">
+                          <span className="text-[#c4c7c7]/60">
+                            {isUploadingCookbookImage ? 'Uploading Image' : 'Upload Complete'}
+                          </span>
+                          <span className="text-[#D2B48C]">{cookbookImageUploadProgress}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#D2B48C] to-[#feddb3] transition-all duration-300"
+                            style={{ width: `${cookbookImageUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {cookbookImageUrl && (
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={cookbookImageUrl}
+                          alt="Cover preview"
+                          className="h-12 w-12 rounded object-cover border border-white/10"
+                        />
+                        <a href={cookbookImageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#D2B48C] hover:text-white">
+                          View image <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-[#c4c7c7] uppercase">Category</label>
