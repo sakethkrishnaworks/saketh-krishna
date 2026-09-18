@@ -1,7 +1,9 @@
 'use client';
 
-import { ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, ChevronDown, Quote } from 'lucide-react';
 import { ActiveTab } from '../types';
+import { FAQ_DATA, TESTIMONIALS_DATA } from '../data';
 import SK from '../../assets/sk.jpg';
 
 interface HomeViewProps {
@@ -9,6 +11,8 @@ interface HomeViewProps {
 }
 
 export default function HomeView({ onNavigate }: HomeViewProps) {
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
+
   return (
     <div className="min-h-screen flex flex-col bg-[#0c0c0b] pt-14">
       {/* Hero Image - Full width with fade mask like Linktree */}
@@ -84,9 +88,67 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </button>
         </div>
 
+        {/* Testimonials */}
+        <div className="w-full max-w-sm mt-10">
+          <h2 className="font-sans text-base font-semibold text-white text-center mb-4" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            Client Transformations
+          </h2>
+          <div className="flex flex-col gap-3.5">
+            {TESTIMONIALS_DATA.map((t) => (
+              <div key={t.id} className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] p-5">
+                <Quote className="w-5 h-5 text-[#D2B48C] mb-2" aria-hidden="true" />
+                <p className="font-sans text-sm text-white/85 leading-relaxed mb-3" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-full bg-[#D2B48C]/15 border border-[#D2B48C]/30 flex items-center justify-center font-sans text-xs font-bold text-[#D2B48C]">
+                    {t.initials}
+                  </span>
+                  <div>
+                    <p className="font-sans text-sm font-semibold text-white" style={{ fontFamily: 'DM Sans, sans-serif' }}>{t.name}</p>
+                    <p className="font-sans text-xs text-white/50">{t.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* FAQ */}
+        <div className="w-full max-w-sm mt-10">
+          <h2 className="font-sans text-base font-semibold text-white text-center mb-4" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+            Common Questions
+          </h2>
+          <div className="flex flex-col gap-2.5">
+            {FAQ_DATA.map((faq) => {
+              const open = openFaq === faq.id;
+              return (
+                <div key={faq.id} className="rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(open ? null : faq.id)}
+                    aria-expanded={open}
+                    className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left"
+                  >
+                    <span className="font-sans text-sm font-medium text-white" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                      {faq.question}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 text-[#D2B48C] transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+                  </button>
+                  {open && (
+                    <p className="px-5 pb-4 font-sans text-sm text-white/70 leading-relaxed" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                      {faq.answer}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Social Links Row */}
         <div className="flex items-center gap-5 mt-10 mb-6">
-          <a href="https://instagram.com" target="_blank" rel="noreferrer" className="text-white/70 hover:text-white transition-colors">
+          <a href="https://instagram.com/sakethkrishna" target="_blank" rel="noreferrer" className="text-white/70 hover:text-white transition-colors">
             <svg fill="currentColor" width="28" height="28" viewBox="0 0 24 24"><title>Instagram</title><path d="M12 2C9.2912 2 8.94131 2 7.86907 2.05643C7.03985 2.07241 6.21934 2.22888 5.44244 2.51919C4.78781 2.77878 4.23476 3.11738 3.67043 3.68172C3.11738 4.23476 2.76749 4.78781 2.51919 5.45372C2.27088 6.08578 2.10158 6.80813 2.05643 7.88036C2.01129 8.94131 2 9.27991 2 12C2 14.7088 2 15.0474 2.05643 16.1196C2.10158 17.1919 2.28217 17.9255 2.51919 18.5576C2.77878 19.2122 3.11738 19.7652 3.67043 20.3296C4.23476 20.8826 4.78781 21.2325 5.44244 21.4808C6.08578 21.7291 6.80813 21.8984 7.86907 21.9436C8.94131 21.9887 9.27991 22 12 22C14.7088 22 15.0474 22 16.1196 21.9436C17.1806 21.8984 17.9142 21.7178 18.5463 21.4808C19.2137 21.2306 19.8184 20.8377 20.3183 20.3296C20.8826 19.7652 21.2212 19.2009 21.4695 18.5576C21.7178 17.9142 21.8871 17.1919 21.9436 16.1196C21.9887 15.0587 22 14.7201 22 12C22 9.2912 21.9887 8.9526 21.9436 7.88036C21.9225 7.05065 21.7622 6.23037 21.4695 5.45372C21.2189 4.78649 20.8261 4.18182 20.3183 3.68172C19.754 3.11738 19.2122 2.77878 18.5463 2.51919C17.7686 2.23315 16.9482 2.08051 16.1196 2.06772C15.0474 2.01129 14.7088 2 12 2ZM12 4C14.654 4 15.0007 4.00453 16.0582 4.05829C17.0454 4.10833 17.5722 4.27416 17.9241 4.41328C18.3894 4.59642 18.726 4.81459 19.058 5.14676C19.3897 5.4781 19.6079 5.81521 19.7908 6.28098C19.9299 6.63288 20.0957 7.15916 20.1458 8.14638C20.1995 9.20482 20.204 9.75534 20.204 12C20.204 14.2446 20.1995 14.7952 20.1458 15.8536C20.0957 16.8409 19.9299 17.3671 19.7908 17.719C19.6079 18.1848 19.3897 18.5215 19.058 18.8532C18.726 19.1854 18.3894 19.4036 17.9241 19.5867C17.5722 19.7258 17.0454 19.8916 16.0582 19.9417C15.0007 19.9955 14.654 20 12 20C9.346 20 8.99935 19.9955 7.94183 19.9417C6.9546 19.8916 6.4278 19.7258 6.07588 19.5867C5.61055 19.4036 5.27399 19.1854 4.942 18.8532C4.61037 18.5215 4.39212 18.1848 4.20919 17.719C4.07007 17.3671 3.90423 16.8409 3.8542 15.8536C3.80045 14.7952 3.796 14.2446 3.796 12C3.796 9.75534 3.80045 9.20482 3.8542 8.14638C3.90423 7.15916 4.07007 6.63288 4.20919 6.28098C4.39212 5.81521 4.61037 5.4781 4.942 5.14676C5.27399 4.81459 5.61055 4.59642 6.07588 4.41328C6.4278 4.27416 6.9546 4.10833 7.94183 4.05829C8.99935 4.00453 9.346 4 12 4ZM12 6.4C8.9184 6.4 6.4 8.9184 6.4 12C6.4 15.0816 8.9184 17.6 12 17.6C15.0816 17.6 17.6 15.0816 17.6 12C17.6 8.9184 15.0816 6.4 12 6.4ZM12 8.8C13.7674 8.8 15.2 10.2326 15.2 12C15.2 13.7674 13.7674 15.2 12 15.2C10.2326 15.2 8.8 13.7674 8.8 12C8.8 10.2326 10.2326 8.8 12 8.8ZM17.6 5.5C16.7402 5.5 16 6.24016 16 7.1C16 7.95984 16.7402 8.7 17.6 8.7C18.4598 8.7 19.2 7.95984 19.2 7.1C19.2 6.24016 18.4598 5.5 17.6 5.5Z" /></svg>
           </a>
           <a href="https://tiktok.com" target="_blank" rel="noreferrer" className="text-white/70 hover:text-white transition-colors">

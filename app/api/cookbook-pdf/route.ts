@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BUNDLE_CONTENTS } from '../../../src/lib/products';
 import { getDriveAccessToken } from '../../../src/lib/driveUpload';
 import { createServerClient } from '../../../src/lib/serverSupabase';
 
@@ -55,7 +56,19 @@ export async function GET(request: NextRequest) {
     const cookbookId = cookbookIds[0];
     if (cookbookIds.length !== 1 || !cookbookId?.trim() || cookbookId.length > 200) return failure(400);
 
-    const { data: purchase, error: purchaseError } = await supabase
+    const { data: owned, error: purchaseError } = await supabase
+      .from('purchases')
+      .select('cookbook_id, product_id')
+      .eq('user_id', userData.user.id)
+      .eq('status', 'paid');
+    if (purchaseError) return failure(503);
+    const ownedIds = new Set((owned ?? []).flatMap((row) => [row.cookbook_id, row.product_id]).filter((id): id is string => typeof id === 'string'));
+    const granted = ownedIds.has(cookbookId) ||
+      [...ownedIds].some((id) => BUNDLE_CONTENTS[id]?.includes(cookbookId));
+    if (!granted) return failure(403);
+
+    // Snapshot kept for the direct-purchase row so deleted products still open.
+    const { data: purchase } = await supabase
       .from('purchases')
       .select('pdf_url')
       .eq('user_id', userData.user.id)
@@ -64,8 +77,6 @@ export async function GET(request: NextRequest) {
       .order('purchased_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (purchaseError) return failure(503);
-    if (!purchase) return failure(403);
 
     const { data: cookbook, error: cookbookError } = await supabase
       .from('cookbooks')
@@ -76,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     const currentUrl = cookbook?.pdfurl;
     const fileId = driveFileId(
-      typeof currentUrl === 'string' && currentUrl.trim() ? currentUrl : purchase.pdf_url
+      typeof currentUrl === 'string' && currentUrl.trim() ? currentUrl : purchase?.pdf_url
     );
     if (!fileId) return failure(404);
 

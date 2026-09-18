@@ -1,4 +1,4 @@
-import { Cookbook, EventSession, Testimonial } from './types';
+import { CoachingPlan, Consultation, Cookbook, Course, DietPlan, EventSession, FaqItem, Testimonial } from './types';
 import ReadImg from '../assets/read.jpg';
 
 export const ASSET_IMAGES = {
@@ -33,8 +33,8 @@ export const COOKBOOKS_DATA: Cookbook[] = [
     id: 'telugu-kitchen',
     title: 'The High-Protein Telugu Kitchen',
     category: 'high-protein',
-    price: 2499,
-    oldPrice: 3999,
+    price: 999,
+    oldPrice: 1499,
     description: 'Master the art of traditional South Indian cuisine optimized for modern muscle building and fat loss. 60+ custom macro-calculated masterpieces.',
     image: ASSET_IMAGES.teluguKitchen,
     tag: 'Best Seller',
@@ -45,7 +45,8 @@ export const COOKBOOKS_DATA: Cookbook[] = [
     id: 'air-fryer',
     title: 'Modern Air Fryer Recipes',
     category: 'air-fryer',
-    price: 1499,
+    price: 799,
+    oldPrice: 1199,
     description: 'Perfectly crispy roasted vegetables and ultra-lean flavorful proteins. High detail cinematic steam and precision clean eating strategies.',
     image: ASSET_IMAGES.airFryerRecipes,
     features: ['35+ Quick Air Fryer blueprints', 'Zero added oils / High Saturation techniques', 'Meal prep friendly storage steps']
@@ -54,11 +55,23 @@ export const COOKBOOKS_DATA: Cookbook[] = [
     id: 'meal-prep',
     title: 'Fat Loss Meal Prep Guide',
     category: 'high-protein',
-    price: 1999,
+    price: 899,
+    oldPrice: 1299,
     description: 'The ultimate system for professional-grade batch prepped meals without the culinary burnout. Includes full 7-day layout schedules and smart checklists.',
     image: ASSET_IMAGES.mealPrepGuide,
     tag: 'Highly Rated',
     features: ['7-Day fully optimized plan', 'Comprehensive grocery list matrices', 'Leakproof container sizing hacks']
+  },
+  {
+    id: 'complete-bundle',
+    title: 'The Complete Cookbook Bundle',
+    category: 'bundle',
+    price: 2499,
+    oldPrice: 3697,
+    description: 'Every cookbook in one bundle: Telugu Kitchen, Air Fryer Recipes, and the Meal Prep Guide. The full library at one price.',
+    image: ASSET_IMAGES.cookbookHeroBg,
+    tag: 'Best Value',
+    features: ['All 3 cookbooks included', '100+ High Protein recipes', 'Save vs buying separately']
   }
 ];
 
@@ -114,42 +127,270 @@ export const TESTIMONIALS_DATA: Testimonial[] = [
   }
 ];
 
-export const DIET_PLANS = [
+export const DIET_PLANS: DietPlan[] = [
   {
-    id: 'beginner-fat-loss',
-    title: 'Beginner Fat Loss',
-    price: 8999,
-    period: 'quarter',
-    description: 'Fundamental metabolic conditioning with easy-to-follow meal structures and quick prep layouts.',
+    id: 'fat-loss-veg',
+    title: 'Fat Loss (Veg)',
+    price: 1499,
+    period: 'plan',
+    description: 'Vegetarian fat-loss protocol with paneer, soya, and dal-first macro structures.',
     image: ASSET_IMAGES.beginnerFatLoss,
-    badge: 'Entry Level'
+    badge: 'Veg',
+    goal: 'fat-loss',
+    dietType: 'veg'
   },
   {
-    id: 'high-protein',
-    title: 'High Protein',
-    price: 14999,
-    period: 'quarter',
-    description: 'Engineered for hypertrophy and lean mass retention. Elite level macro ratios with premium recipes.',
+    id: 'fat-loss-non-veg',
+    title: 'Fat Loss (Non-Veg)',
+    price: 1499,
+    period: 'plan',
+    description: 'Lean chicken, fish, and egg-based cutting plan with Indian kitchen staples.',
+    image: ASSET_IMAGES.highProteinSteak,
+    goal: 'fat-loss',
+    dietType: 'non-veg'
+  },
+  {
+    id: 'fat-loss-vegan',
+    title: 'Fat Loss (Vegan)',
+    price: 1499,
+    period: 'plan',
+    description: 'Fully plant-based deficit plan built on tofu, tempeh, and legumes.',
+    image: ASSET_IMAGES.veganBlueprint,
+    badge: 'Vegan',
+    goal: 'fat-loss',
+    dietType: 'vegan'
+  },
+  {
+    id: 'muscle-gain-veg',
+    title: 'Muscle Gain (Veg)',
+    price: 1499,
+    period: 'plan',
+    description: 'Vegetarian hypertrophy nutrition with surplus calories and 2g/kg protein targets.',
+    image: ASSET_IMAGES.vegetarianBowl,
+    goal: 'muscle-gain',
+    dietType: 'veg'
+  },
+  {
+    id: 'muscle-gain-non-veg',
+    title: 'Muscle Gain (Non-Veg)',
+    price: 1499,
+    period: 'plan',
+    description: 'High-protein mass-building plan with chicken, eggs, and fish rotations.',
     image: ASSET_IMAGES.highProteinSteak,
     badge: 'Most Popular',
-    popular: true
+    popular: true,
+    goal: 'muscle-gain',
+    dietType: 'non-veg'
   },
   {
-    id: 'vegetarian-plans',
-    title: 'Vegetarian Plans',
-    price: 11999,
-    period: 'quarter',
-    description: 'High-performance plant nutrition without protein compromise or micronutrient dropoffs.',
+    id: 'lean-bulk',
+    title: 'Lean Bulk',
+    price: 1499,
+    period: 'plan',
+    description: 'Controlled surplus for clean size gains with minimal fat spillover.',
+    image: ASSET_IMAGES.lean30,
+    goal: 'lean-bulk',
+    dietType: 'any'
+  },
+  {
+    id: 'cutting',
+    title: 'Cutting',
+    price: 1499,
+    period: 'plan',
+    description: 'Aggressive-but-safe shredding protocol for visible definition phases.',
+    image: ASSET_IMAGES.beginnerFatLoss,
+    goal: 'cutting',
+    dietType: 'any'
+  },
+  {
+    id: 'maintenance',
+    title: 'Maintenance',
+    price: 1499,
+    period: 'plan',
+    description: 'Stay exactly where you are: balanced Indian maintenance eating for life.',
     image: ASSET_IMAGES.vegetarianBowl,
-    badge: 'Plant-Based'
+    goal: 'maintenance',
+    dietType: 'any'
   },
   {
-    id: 'diabetic-friendly',
-    title: 'Diabetic-Friendly',
-    price: 12999,
-    period: 'quarter',
-    description: 'Glycemic-conscious protocols designed specifically for insulin optimization and metabolic longevity.',
+    id: 'pcos-friendly',
+    title: 'PCOS-Friendly',
+    price: 1499,
+    period: 'plan',
+    description: 'Low-glycemic, seed-cycling aware plan supporting hormonal balance.',
     image: ASSET_IMAGES.diabeticSalad,
-    badge: 'Wellness Focus'
+    badge: 'Hormone Health',
+    goal: 'pcos',
+    dietType: 'veg'
+  },
+  {
+    id: 'diabetes-friendly',
+    title: 'Diabetes-Friendly',
+    price: 1499,
+    period: 'plan',
+    description: 'Glycemic-conscious protocols for insulin optimization and metabolic longevity.',
+    image: ASSET_IMAGES.diabeticSalad,
+    badge: 'Wellness Focus',
+    goal: 'diabetes',
+    dietType: 'any'
+  },
+  {
+    id: 'student-budget',
+    title: 'Student Budget',
+    price: 999,
+    period: 'plan',
+    description: 'Maximum protein per rupee: hostel and budget-kitchen friendly fat loss.',
+    image: ASSET_IMAGES.mealPrepJars,
+    badge: 'Budget',
+    goal: 'fat-loss',
+    dietType: 'veg'
+  },
+  {
+    id: 'office-worker',
+    title: 'Office Worker',
+    price: 1499,
+    period: 'plan',
+    description: 'Desk-job friendly plan with tiffin, cafeteria, and late-night-shift strategies.',
+    image: ASSET_IMAGES.cookingClassWorkspace,
+    goal: 'maintenance',
+    dietType: 'any'
+  },
+  {
+    id: 'high-protein-indian',
+    title: 'High Protein Indian Diet',
+    price: 1499,
+    period: 'plan',
+    description: 'The flagship: everyday Indian meals re-engineered for 120g+ protein days.',
+    image: ASSET_IMAGES.teluguKitchen,
+    badge: 'Flagship',
+    goal: 'muscle-gain',
+    dietType: 'any'
+  },
+  {
+    id: 'custom-diet-plan',
+    title: 'Custom Diet Plan',
+    price: 3999,
+    period: 'plan',
+    description: 'Fully personalized plan built 1:1 around your labs, schedule, and food preferences.',
+    image: ASSET_IMAGES.dietPlansHeroBg,
+    badge: 'Custom',
+    goal: 'custom',
+    dietType: 'any'
+  }
+];
+
+export const COACHING_PLANS: CoachingPlan[] = [
+  {
+    id: 'coaching-1-month',
+    title: '1-Month 1:1 Coaching',
+    price: 7500,
+    duration: '1 month',
+    durationMonths: 1,
+    description: 'Four weeks of strategic nutrition coaching with weekly check-ins and WhatsApp support.',
+    image: ASSET_IMAGES.coachAvatar,
+    features: ['Weekly check-ins', 'WhatsApp support', 'Nutrition guidance', 'Progress tracking']
+  },
+  {
+    id: 'coaching-3-month',
+    title: '3-Month 1:1 Coaching',
+    price: 15000,
+    duration: '3 months',
+    durationMonths: 3,
+    description: 'A full quarter of coaching for real body-composition transformation.',
+    image: ASSET_IMAGES.athleticHero,
+    badge: 'Most Popular',
+    popular: true,
+    features: ['Weekly check-ins', 'WhatsApp support', 'Nutrition guidance', 'Progress tracking']
+  },
+  {
+    id: 'coaching-6-month',
+    title: '6-Month 1:1 Coaching',
+    price: 50000,
+    duration: '6 months',
+    durationMonths: 6,
+    description: 'Half a year of elite accountability for a complete lifestyle overhaul.',
+    image: ASSET_IMAGES.sereneMorning,
+    badge: 'Best Value',
+    features: ['Weekly check-ins', 'WhatsApp support', 'Nutrition guidance', 'Progress tracking']
+  }
+];
+
+export const CONSULTATIONS: Consultation[] = [
+  {
+    id: 'nutrition-consult',
+    title: 'Nutrition Consultation',
+    price: 999,
+    duration: '45 min',
+    description: 'A focused 1:1 session to audit your current eating and fix the biggest leaks.',
+    image: ASSET_IMAGES.diabeticSalad
+  },
+  {
+    id: 'healthy-cooking-consult',
+    title: 'Healthy Cooking Session',
+    price: 1499,
+    duration: '60 min',
+    description: 'Live cooking guidance to make your own kitchen produce restaurant-grade healthy food.',
+    image: ASSET_IMAGES.cookingClassWorkspace
+  },
+  {
+    id: 'meal-prep-consult',
+    title: 'Meal Prep Consultation',
+    price: 999,
+    duration: '45 min',
+    description: 'Design your weekly batch-cooking system with containers, schedules, and macros.',
+    image: ASSET_IMAGES.mealPrepJars
+  },
+  {
+    id: 'grocery-shopping-consult',
+    title: 'Grocery Shopping Guide',
+    price: 799,
+    duration: '30 min',
+    description: 'Learn to read labels and build a high-protein Indian grocery list on any budget.',
+    image: ASSET_IMAGES.vegetarianBowl
+  }
+];
+
+export const COURSES: Course[] = [
+  {
+    id: 'meal-prep-course',
+    title: 'Meal Prep Video Course',
+    price: 1999,
+    description: 'Self-paced video course: batch cooking systems, storage science, and weekly layouts.',
+    image: ASSET_IMAGES.mealPrepJars,
+    tag: 'Video Course',
+    features: ['Step-by-step video lessons', 'Downloadable checklists', 'Lifetime access']
+  }
+];
+
+export const FAQ_DATA: FaqItem[] = [
+  {
+    id: 'faq-access',
+    question: 'How do I read my cookbook after buying it?',
+    answer: 'Open My Library after signing in and tap Read Book. Cookbooks open in a protected online reader tied to your account.'
+  },
+  {
+    id: 'faq-personalized',
+    question: 'Are the diet plans personalized?',
+    answer: 'The goal-specific plans are structured protocols. For a fully personalized build around your schedule and preferences, choose the Custom Diet Plan or 1:1 coaching.'
+  },
+  {
+    id: 'faq-coaching',
+    question: 'What does 1:1 coaching include?',
+    answer: 'Weekly check-ins, WhatsApp support, nutrition guidance, and progress tracking for the full duration of your plan.'
+  },
+  {
+    id: 'faq-veg',
+    question: 'Do you support vegetarian and vegan diets?',
+    answer: 'Yes. Dedicated Veg, Non-Veg, and Vegan variants exist for fat loss and muscle gain, plus a standalone vegetarian range.'
+  },
+  {
+    id: 'faq-consult',
+    question: 'How do consultations work?',
+    answer: 'Pick a consultation type, choose a date and time, and you will receive session details on your registered email after booking.'
+  },
+  {
+    id: 'faq-support',
+    question: 'I paid but my library is empty. What do I do?',
+    answer: 'Do not pay again. Sign in with the same Google account you used at checkout and refresh My Library. If it is still empty, contact support with your order ID.'
   }
 ];

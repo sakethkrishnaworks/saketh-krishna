@@ -14,12 +14,15 @@ interface VerifyBody {
 
 interface ResolvedItem {
   id: string;
+  kind: string;
   title: string;
   image: string | null;
   pdf_url: string | null;
   price: number;
   quantity: number;
 }
+
+const VALID_KINDS = new Set(['cookbook', 'diet', 'coaching', 'consultation', 'course']);
 
 function failure(message: string, status = 400) {
   return NextResponse.json(
@@ -33,6 +36,7 @@ function isResolvedItem(value: unknown): value is ResolvedItem {
   const item = value as ResolvedItem;
   return (
     typeof item.id === 'string' && Boolean(item.id.trim()) && item.id.length <= 200 &&
+    typeof item.kind === 'string' && VALID_KINDS.has(item.kind) &&
     typeof item.title === 'string' && Boolean(item.title.trim()) &&
     (item.image === null || typeof item.image === 'string') &&
     (item.pdf_url === null || typeof item.pdf_url === 'string') &&
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
     if (
       !Array.isArray(cart) || cart.length === 0 || cart.length > 100 || !cart.every(isResolvedItem) ||
-      new Set(cart.map((item) => item.id)).size !== cart.length
+      new Set(cart.map((item) => `${item.kind}:${item.id}`)).size !== cart.length
     ) {
       return failure('Order details are invalid. Please contact support; do not pay again.', 409);
     }
@@ -126,9 +130,11 @@ export async function POST(request: NextRequest) {
     }
 
     const rows = items.map((item) => ({
-      id: `pur_${userId}_${item.id}_${orderId}`,
+      id: `pur_${userId}_${item.kind}_${item.id}_${orderId}`,
       user_id: userId,
-      cookbook_id: item.id,
+      cookbook_id: item.kind === 'cookbook' ? item.id : null,
+      product_kind: item.kind,
+      product_id: item.id,
       title: item.title,
       image: item.image,
       pdf_url: item.pdf_url,

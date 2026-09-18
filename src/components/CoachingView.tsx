@@ -1,23 +1,28 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Clock, UserCheck, CheckCircle } from 'lucide-react';
+import { Clock, UserCheck, CheckCircle, ShoppingCart } from 'lucide-react';
 import { ASSET_IMAGES } from '../data';
-import { EventSession, DietPlan } from '../types';
+import { CoachingPlan, Consultation, Course, EventSession, DietPlan, PurchasableProduct } from '../types';
+import { coachingPlanToProduct, consultationToProduct, courseToProduct, dietPlanToProduct } from '../lib/products';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ToastProvider';
 
 interface CoachingViewProps {
   events: EventSession[];
   dietPlans: DietPlan[];
+  coachingPlans: CoachingPlan[];
+  consultations: Consultation[];
+  courses: Course[];
   isSignedIn: boolean;
   onLogin: () => void;
+  onAddToCart: (product: PurchasableProduct) => void;
   userName: string;
   userEmail: string;
   userId?: string;
 }
 
-export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, userName, userEmail, userId }: CoachingViewProps) {
+export default function CoachingView({ events, dietPlans, coachingPlans, consultations, courses, isSignedIn, onLogin, onAddToCart, userName, userEmail, userId }: CoachingViewProps) {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
@@ -141,6 +146,15 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleAddProduct = (product: PurchasableProduct) => {
+    if (!isSignedIn) {
+      setAuthPrompt('Please sign in to purchase.');
+      onLogin();
+      return;
+    }
+    onAddToCart(product);
+  };
+
   return (
     <div className="min-h-screen bg-[#0c0c0b] pt-14 pb-10 px-5 safe-bottom">
       <div className="max-w-md mx-auto">
@@ -195,12 +209,21 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
                         <span className="font-serif text-base md:text-lg text-white font-bold">₹{plan.price.toLocaleString('en-IN')}</span>
                         <span className="font-sans text-[9px] text-[#a0a0a0]">/ {plan.period}</span>
                       </div>
-                      <button
-                        onClick={() => handleSelectPlan(plan.title)}
-                        className="px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
-                      >
-                        {isSignedIn ? 'Select' : 'Sign In'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSelectPlan(plan.title)}
+                          className="px-3 py-2 bg-transparent text-[#D2B48C] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase border border-[#D2B48C]/40 hover:bg-[#D2B48C]/10 transition-all"
+                        >
+                          {isSignedIn ? 'Select' : 'Sign In'}
+                        </button>
+                        <button
+                          onClick={() => handleAddProduct(dietPlanToProduct(plan))}
+                          aria-label={`Add ${plan.title} to cart`}
+                          className="p-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg hover:bg-[#feddb3] transition-all"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -208,6 +231,127 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
             ))}
           </div>
         </div>
+
+        {/* 1:1 Coaching Tiers */}
+        {coachingPlans.length > 0 && (
+          <div className="mb-10">
+            <h2 className="font-serif text-lg text-white font-semibold mb-1">1:1 Coaching</h2>
+            <p className="font-sans text-[10px] text-[#a0a0a0] mb-4">Weekly check-ins · WhatsApp support · Nutrition guidance · Progress tracking</p>
+            <div className="flex flex-col gap-3.5">
+              {coachingPlans.map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`bg-[#1a1a1a] border ${tier.popular ? 'border-[#D2B48C]/30' : 'border-[#2a2a2a]'} hover:border-[#D2B48C]/30 rounded-xl transition-all duration-200 overflow-hidden`}
+                >
+                  <div className="flex items-stretch">
+                    <div className="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 bg-[#2a2a2a] overflow-hidden">
+                      <img src={tier.image} alt={tier.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0 p-3.5 md:p-4 flex flex-col justify-between">
+                      <div>
+                        {tier.badge && (
+                          <span className="text-[8px] font-sans font-bold tracking-wider text-[#D2B48C] uppercase">{tier.badge}</span>
+                        )}
+                        <h3 className="font-serif text-sm md:text-base text-white font-semibold leading-tight">{tier.title}</h3>
+                        <p className="font-sans text-[10px] text-[#a0a0a0] mt-1 line-clamp-1">{tier.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <div className="flex items-baseline gap-1">
+                          <span className="font-serif text-base md:text-lg text-white font-bold">₹{tier.price.toLocaleString('en-IN')}</span>
+                          <span className="font-sans text-[9px] text-[#a0a0a0]">/ {tier.duration}</span>
+                        </div>
+                        <button
+                          onClick={() => handleAddProduct(coachingPlanToProduct(tier))}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Consultations */}
+        {consultations.length > 0 && (
+          <div className="mb-10">
+            <h2 className="font-serif text-lg text-white font-semibold mb-4">Consultations</h2>
+            <div className="flex flex-col gap-3.5">
+              {consultations.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#D2B48C]/30 rounded-xl transition-all duration-200 overflow-hidden"
+                >
+                  <div className="flex items-stretch">
+                    <div className="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 bg-[#2a2a2a] overflow-hidden">
+                      <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0 p-3.5 md:p-4 flex flex-col justify-between">
+                      <div>
+                        <h3 className="font-serif text-sm md:text-base text-white font-semibold leading-tight">{item.title}</h3>
+                        <p className="font-sans text-[10px] text-[#a0a0a0] mt-1 line-clamp-1">{item.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <div className="flex items-baseline gap-1">
+                          <span className="font-serif text-base md:text-lg text-white font-bold">₹{item.price.toLocaleString('en-IN')}</span>
+                          <span className="font-sans text-[9px] text-[#a0a0a0]">/ {item.duration}</span>
+                        </div>
+                        <button
+                          onClick={() => handleAddProduct(consultationToProduct(item))}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Courses */}
+        {courses.length > 0 && (
+          <div className="mb-10">
+            <h2 className="font-serif text-lg text-white font-semibold mb-4">Video Courses</h2>
+            <div className="flex flex-col gap-3.5">
+              {courses.map((course) => (
+                <div
+                  key={course.id}
+                  className="bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#D2B48C]/30 rounded-xl transition-all duration-200 overflow-hidden"
+                >
+                  <div className="flex items-stretch">
+                    <div className="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 bg-[#2a2a2a] overflow-hidden">
+                      <img src={course.image} alt={course.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0 p-3.5 md:p-4 flex flex-col justify-between">
+                      <div>
+                        {course.tag && (
+                          <span className="text-[8px] font-sans font-bold tracking-wider text-[#D2B48C] uppercase">{course.tag}</span>
+                        )}
+                        <h3 className="font-serif text-sm md:text-base text-white font-semibold leading-tight">{course.title}</h3>
+                        <p className="font-sans text-[10px] text-[#a0a0a0] mt-1 line-clamp-1">{course.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2.5">
+                        <span className="font-serif text-base md:text-lg text-white font-bold">₹{course.price.toLocaleString('en-IN')}</span>
+                        <button
+                          onClick={() => handleAddProduct(courseToProduct(course))}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Accountability Section - Simplified Card */}
         <div className="mb-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 md:p-6">
@@ -313,6 +457,16 @@ export default function CoachingView({ events, dietPlans, isSignedIn, onLogin, u
                     <CheckCircle className="w-4 h-4 text-[#D2B48C]" />
                   </div>
                 )}
+                <div>
+                  <label className="font-sans text-[9px] font-bold text-[#a0a0a0] tracking-wider uppercase block mb-1">Topic</label>
+                  <select value={selectedPlan ?? ''} onChange={(e) => setSelectedPlan(e.target.value || null)}
+                    className="w-full bg-[#0c0c0b] border border-[#2a2a2a] text-[#a0a0a0] rounded-lg px-4 py-3 font-sans text-sm focus:outline-none focus:border-[#D2B48C]">
+                    <option value="">General consultation</option>
+                    {dietPlans.map((plan) => (<option key={plan.id} value={plan.title}>{plan.title}</option>))}
+                    {coachingPlans.map((tier) => (<option key={tier.id} value={tier.title}>{tier.title}</option>))}
+                    {consultations.map((item) => (<option key={item.id} value={item.title}>{item.title}</option>))}
+                  </select>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="font-sans text-[9px] font-bold text-[#a0a0a0] tracking-wider uppercase block mb-1">Full Name</label>

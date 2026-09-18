@@ -40,7 +40,9 @@ export function normalizePurchase(row: RawRow): PurchaseRecord {
   return {
     id: String(row.id),
     user_id: typeof row.user_id === 'string' ? row.user_id : undefined,
-    cookbook_id: String(row.cookbook_id),
+    cookbook_id: typeof row.cookbook_id === 'string' ? row.cookbook_id : null,
+    product_kind: typeof row.product_kind === 'string' ? row.product_kind : 'cookbook',
+    product_id: typeof row.product_id === 'string' ? row.product_id : null,
     title: String(row.title ?? ''),
     image: (row.image as string | null) ?? null,
     pdf_url: (row.pdf_url as string | null) ?? null,

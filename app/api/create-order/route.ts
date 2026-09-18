@@ -7,6 +7,7 @@ export const runtime = 'nodejs';
 
 interface RequestItem {
   id: string;
+  kind?: string;
   quantity?: number;
 }
 
@@ -15,8 +16,17 @@ interface CreateOrderBody {
   promo?: string;
 }
 
+const KIND_TABLES: Record<string, string> = {
+  cookbook: 'cookbooks',
+  diet: 'dietplans',
+  coaching: 'coaching_plans',
+  consultation: 'consultations',
+  course: 'courses',
+};
+
 interface ResolvedItem {
   id: string;
+  kind: string;
   title: string;
   image: string | null;
   pdf_url: string | null;
@@ -53,50 +63,57 @@ export async function POST(request: NextRequest) {
       return badRequest('Invalid promo code.');
     }
 
-    const items: Array<{ id: string; quantity: number }> = [];
+    const items: Array<{ id: string; kind: string; quantity: number }> = [];
     const seen = new Set<string>();
     for (const item of body.items) {
       const quantity = item?.quantity ?? 1;
+      const kind = typeof item?.kind === 'string' ? item.kind : 'cookbook';
       if (
         !item || typeof item.id !== 'string' || !item.id.trim() || item.id.length > 200 ||
-        seen.has(item.id) || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 100
+        !KIND_TABLES[kind] || seen.has(`${kind}:${item.id}`) ||
+        !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 100
       ) {
         return badRequest('Invalid cart item or quantity.');
       }
-      seen.add(item.id);
-      items.push({ id: item.id, quantity });
+      seen.add(`${kind}:${item.id}`);
+      items.push({ id: item.id, kind, quantity });
     }
 
-    const { data: books, error: priceError } = await supabase
-      .from('cookbooks')
-      .select('id, title, price, image, pdfurl')
-      .in('id', items.map((item) => item.id));
+    const rowsByKind = new Map<string, Map<string, { id: string; title: string; price: unknown; image: unknown; pdfurl?: unknown }>>();
+    for (const item of items) {
+      if (rowsByKind.has(item.kind)) continue;
+      const { data: rows, error: priceError } = await supabase
+        .from(KIND_TABLES[item.kind])
+        .select('id, title, price, image, pdfurl')
+        .in('id', items.filter((entry) => entry.kind === item.kind).map((entry) => entry.id));
 
-    if (priceError) {
-      return NextResponse.json({ error: 'Failed to look up product prices.' }, { status: 500 });
+      if (priceError) {
+        return NextResponse.json({ error: 'Failed to look up product prices.' }, { status: 500 });
+      }
+      rowsByKind.set(item.kind, new Map((rows ?? []).map((row) => [row.id, row])));
     }
 
-    const bookMap = new Map((books ?? []).map((book) => [book.id, book]));
     let subtotal = 0;
     const resolved: ResolvedItem[] = [];
 
     for (const item of items) {
-      const book = bookMap.get(item.id);
-      if (!book) {
-        return badRequest('A cookbook is no longer available.');
+      const row = rowsByKind.get(item.kind)?.get(item.id);
+      if (!row) {
+        return badRequest('A product in your cart is no longer available.');
       }
 
-      const price = Number(book.price);
-      if (!Number.isFinite(price) || price < 0 || typeof book.title !== 'string' || !book.title.trim()) {
-        return badRequest('A cookbook has invalid product details.');
+      const price = Number(row.price);
+      if (!Number.isFinite(price) || price < 0 || typeof row.title !== 'string' || !row.title.trim()) {
+        return badRequest('A product has invalid details.');
       }
 
       subtotal += price * item.quantity;
       resolved.push({
-        id: book.id,
-        title: book.title,
-        image: book.image ?? null,
-        pdf_url: book.pdfurl ?? null,
+        id: row.id,
+        kind: item.kind,
+        title: row.title,
+        image: typeof row.image === 'string' ? row.image : null,
+        pdf_url: typeof row.pdfurl === 'string' ? row.pdfurl : null,
         price,
         quantity: item.quantity,
       });

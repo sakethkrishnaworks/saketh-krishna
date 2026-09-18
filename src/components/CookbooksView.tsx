@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { ShoppingCart, Check, Mail } from 'lucide-react';
-import { Cookbook } from '../types';
+import { Cookbook, PurchasableProduct } from '../types';
+import { cookbookToProduct } from '../lib/products';
 
 interface CookbooksViewProps {
   cookbooks: Cookbook[];
-  onAddToCart: (cookbook: Cookbook) => void;
+  onAddToCart: (product: PurchasableProduct) => void;
   onSubscribe: (email: string) => void;
   isSignedIn: boolean;
   onLogin: () => void;
@@ -25,6 +26,7 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isS
     { id: 'high-protein', label: 'High Protein' },
     { id: 'vegetarian', label: 'Vegetarian' },
     { id: 'air-fryer', label: 'Air Fryer' },
+    { id: 'bundle', label: 'Bundle' },
   ];
 
   const filteredCookbooks = selectedCategory === 'all'
@@ -44,12 +46,12 @@ export default function CookbooksView({ cookbooks, onAddToCart, onSubscribe, isS
 
   const triggerAddToCart = (book: Cookbook) => {
     if (!isSignedIn) {
-      setAuthPrompt('Please sign in to purchase cookbooks.');
+      setAuthPrompt('Please sign in to purchase.');
       onLogin();
       return;
     }
 
-    onAddToCart(book);
+    onAddToCart(cookbookToProduct(book));
     setSuccessAnimationItem(book.id);
     setTimeout(() => {
       setSuccessAnimationItem(null);

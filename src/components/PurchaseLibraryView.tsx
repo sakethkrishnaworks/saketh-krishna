@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { BookOpen, ArrowRight } from 'lucide-react';
 import { Cookbook, PurchaseRecord } from '../types';
+import { BUNDLE_CONTENTS, kindLabel } from '../lib/products';
 import ReaderModal from './ReaderModal';
 
 interface PurchaseLibraryViewProps {
@@ -20,9 +21,11 @@ export default function PurchaseLibraryView({
   onLogin,
   onBrowseCookbooks,
 }: PurchaseLibraryViewProps) {
-  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseRecord | null>(null);
-  const closeReader = useCallback(() => setSelectedPurchase(null), []);
-  const activePurchase = selectedPurchase && purchases.find((purchase) => purchase.id === selectedPurchase.id && purchase.user_id === selectedPurchase.user_id);
+  const [readerTarget, setReaderTarget] = useState<{ purchase: PurchaseRecord; cookbookId: string; title: string } | null>(null);
+  const closeReader = useCallback(() => setReaderTarget(null), []);
+  const activeTarget = readerTarget && purchases.some((purchase) => purchase.id === readerTarget.purchase.id)
+    ? readerTarget
+    : null;
 
   if (!isSignedIn) {
     return (
@@ -78,7 +81,17 @@ export default function PurchaseLibraryView({
         ) : (
           <div className="flex flex-col gap-3.5">
             {purchases.map((purchase) => {
-              const latestCookbook = cookbooks.find((book) => book.id === purchase.cookbook_id);
+              const productId = purchase.product_id ?? purchase.cookbook_id;
+              const kind = purchase.product_kind ?? 'cookbook';
+              const latestCookbook = kind === 'cookbook' && purchase.cookbook_id
+                ? cookbooks.find((book) => book.id === purchase.cookbook_id)
+                : undefined;
+              const pdfUrl = latestCookbook?.pdfUrl ?? purchase.pdf_url ?? undefined;
+              const includedBooks = kind === 'cookbook' && productId
+                ? (BUNDLE_CONTENTS[productId] ?? [])
+                    .map((id) => cookbooks.find((book) => book.id === id))
+                    .filter((book): book is Cookbook => Boolean(book))
+                : [];
 
               return (
                 <div
@@ -95,6 +108,7 @@ export default function PurchaseLibraryView({
                     </div>
                     <div className="flex-1 min-w-0 p-4 flex flex-col justify-between">
                       <div>
+                        <span className="text-[8px] font-sans font-bold tracking-wider text-[#D2B48C] uppercase">{kindLabel(kind)}</span>
                         <h3 className="font-serif text-sm md:text-base text-white font-semibold leading-tight line-clamp-1">
                           {purchase.title}
                         </h3>
@@ -107,14 +121,31 @@ export default function PurchaseLibraryView({
                           })}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mt-2.5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPurchase(purchase)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
-                        >
-                          <BookOpen className="w-3 h-3" aria-hidden="true" /> Read Book
-                        </button>
+                      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                        {pdfUrl && purchase.cookbook_id ? (
+                          <button
+                            type="button"
+                            onClick={() => setReaderTarget({ purchase, cookbookId: purchase.cookbook_id as string, title: purchase.title })}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
+                          >
+                            <BookOpen className="w-3 h-3" aria-hidden="true" /> Read Book
+                          </button>
+                        ) : includedBooks.length > 0 ? (
+                          includedBooks.map((book) => (
+                            <button
+                              key={book.id}
+                              type="button"
+                              onClick={() => setReaderTarget({ purchase, cookbookId: book.id, title: book.title })}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1a] border border-[#D2B48C]/40 text-[#D2B48C] rounded-lg font-sans text-[9px] font-bold tracking-wider uppercase hover:bg-[#D2B48C]/10 transition-all"
+                            >
+                              <BookOpen className="w-3 h-3" aria-hidden="true" /> {book.title}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-[10px] font-sans text-[#a0a0a0] italic">
+                            {kind === 'cookbook' ? 'PDF coming soon' : 'Show this entry at your session'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -124,12 +155,12 @@ export default function PurchaseLibraryView({
           </div>
         )}
       </div>
-      {activePurchase && (
+      {activeTarget && (
         <ReaderModal
-          key={activePurchase.id}
-          cookbookId={activePurchase.cookbook_id}
-          title={activePurchase.title}
-          userLabel={activePurchase.user_id ? `Reader ${activePurchase.user_id.slice(0, 8)}` : 'Personal reader'}
+          key={`${activeTarget.purchase.id}:${activeTarget.cookbookId}`}
+          cookbookId={activeTarget.cookbookId}
+          title={activeTarget.title}
+          userLabel={activeTarget.purchase.user_id ? `Reader ${activeTarget.purchase.user_id.slice(0, 8)}` : 'Personal reader'}
           onClose={closeReader}
         />
       )}

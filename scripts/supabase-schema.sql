@@ -87,6 +87,15 @@ create table if not exists purchases (
 create index if not exists purchases_user_id_idx on purchases (user_id);
 create index if not exists purchases_order_id_idx on purchases (razorpay_order_id);
 
+-- Generic products: diet plans, coaching tiers, consultations, and courses
+-- share the purchases table. Cookbook rows keep cookbook_id; everything else
+-- uses product_kind/product_id with a null cookbook_id.
+alter table purchases add column if not exists product_kind text not null default 'cookbook';
+alter table purchases add column if not exists product_id text;
+alter table purchases alter column cookbook_id drop not null;
+update purchases set product_id = cookbook_id where product_id is null and cookbook_id is not null;
+create index if not exists purchases_product_idx on purchases (product_kind, product_id);
+
 -- 1:1 coaching consultation requests.
 create table if not exists bookings (
   id text primary key,
@@ -101,6 +110,42 @@ create table if not exists bookings (
 );
 
 create index if not exists bookings_user_id_idx on bookings (user_id);
+
+-- Purchasable 1:1 coaching tiers (1 / 3 / 6 months).
+create table if not exists coaching_plans (
+  id text primary key,
+  title text not null,
+  description text,
+  price numeric not null default 0,
+  duration_months int not null default 1,
+  image text,
+  badge text,
+  popular boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- Paid single-session consultations (nutrition, cooking, meal prep, grocery).
+create table if not exists consultations (
+  id text primary key,
+  title text not null,
+  description text,
+  price numeric not null default 0,
+  duration text,
+  image text,
+  created_at timestamptz not null default now()
+);
+
+-- Self-paced video courses (meal prep course).
+create table if not exists courses (
+  id text primary key,
+  title text not null,
+  description text,
+  price numeric not null default 0,
+  image text,
+  tag text,
+  features text[],
+  created_at timestamptz not null default now()
+);
 
 -- ============================================================================
 -- HELPER: is_admin()
@@ -124,6 +169,9 @@ $$;
 alter table cookbooks   enable row level security;
 alter table events      enable row level security;
 alter table dietplans   enable row level security;
+alter table coaching_plans enable row level security;
+alter table consultations  enable row level security;
+alter table courses        enable row level security;
 alter table subscribers enable row level security;
 alter table admins      enable row level security;
 alter table purchases   enable row level security;
@@ -148,6 +196,25 @@ drop policy if exists "dietplans_read"  on dietplans;
 drop policy if exists "dietplans_write" on dietplans;
 create policy "dietplans_read"  on dietplans for select using (true);
 create policy "dietplans_write" on dietplans for all
+  using (public.is_admin()) with check (public.is_admin());
+
+-- ---------- Coaching plans / consultations / courses: public read, admin write ----------
+drop policy if exists "coaching_plans_read"  on coaching_plans;
+drop policy if exists "coaching_plans_write" on coaching_plans;
+create policy "coaching_plans_read"  on coaching_plans for select using (true);
+create policy "coaching_plans_write" on coaching_plans for all
+  using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "consultations_read"  on consultations;
+drop policy if exists "consultations_write" on consultations;
+create policy "consultations_read"  on consultations for select using (true);
+create policy "consultations_write" on consultations for all
+  using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "courses_read"  on courses;
+drop policy if exists "courses_write" on courses;
+create policy "courses_read"  on courses for select using (true);
+create policy "courses_write" on courses for all
   using (public.is_admin()) with check (public.is_admin());
 
 -- ---------- Subscribers: self-service join, admin-only management ----------

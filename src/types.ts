@@ -10,7 +10,7 @@ export interface Subscriber {
 export interface Cookbook {
   id: string;
   title: string;
-  category: 'high-protein' | 'vegetarian' | 'air-fryer';
+  category: 'high-protein' | 'vegetarian' | 'air-fryer' | 'bundle';
   price: number;
   oldPrice?: number;
   description: string;
@@ -22,8 +22,20 @@ export interface Cookbook {
 }
 
 export interface CartItem {
-  cookbook: Cookbook;
+  product: PurchasableProduct;
   quantity: number;
+}
+
+export type ProductKind = 'cookbook' | 'diet' | 'coaching' | 'consultation' | 'course';
+
+/** Anything sellable through cart + Razorpay. Cookbooks/bundles carry a PDF; services carry scheduling. */
+export interface PurchasableProduct {
+  id: string;
+  kind: ProductKind;
+  title: string;
+  price: number;
+  image: string;
+  pdf_url?: string | null;
 }
 
 /**
@@ -34,7 +46,9 @@ export interface CartItem {
 export interface PurchaseRecord {
   id: string;
   user_id?: string;
-  cookbook_id: string;
+  cookbook_id: string | null;
+  product_kind?: string;
+  product_id?: string | null;
   title: string;
   image?: string | null;
   pdf_url?: string | null;
@@ -56,6 +70,7 @@ export interface PurchasePayload {
   currency: string;
   items: Array<{
     id: string;
+    kind: string;
     title: string;
     image: string | null;
     pdf_url: string | null;
@@ -89,39 +104,40 @@ export interface DietPlan {
   image: string;
   badge?: string;
   popular?: boolean;
+  goal?: string;
+  dietType?: 'veg' | 'non-veg' | 'vegan' | 'any';
 }
 
-export interface Testimonial {
-  id: string;
-  quote: string;
-  name: string;
-  role: string;
-  initials: string;
-}
-
-export interface EventSession {
-  id: string;
-  title: string;
-  date: string;
-  month: string;
-  description: string;
-  time: string;
-  joined: number;
-  tag: string;
-  tagColor: string;
-  image: string;
-  level?: string;
-}
-
-export interface DietPlan {
+export interface CoachingPlan {
   id: string;
   title: string;
   price: number;
-  period: string;
+  duration: string;
+  durationMonths: number;
   description: string;
   image: string;
   badge?: string;
   popular?: boolean;
+  features: string[];
+}
+
+export interface Consultation {
+  id: string;
+  title: string;
+  price: number;
+  duration: string;
+  description: string;
+  image: string;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  price: number;
+  description: string;
+  image: string;
+  tag?: string;
+  features: string[];
 }
 
 export interface Testimonial {
@@ -130,4 +146,10 @@ export interface Testimonial {
   name: string;
   role: string;
   initials: string;
+}
+
+export interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
 }

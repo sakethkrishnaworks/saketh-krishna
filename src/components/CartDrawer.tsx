@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Trash2, Plus, Minus, Sparkles, BookOpen, CheckCircle, Loader2 } from 'lucide-react';
 import { CartItem, PurchasePayload } from '../types';
+import { kindLabel } from '../lib/products';
 import { authedFetch } from '../lib/api';
 import { evaluatePromo, paiseToRupees } from '../lib/promo';
 
@@ -10,8 +11,8 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   cartItems: CartItem[];
-  onUpdateQuantity: (id: string, delta: number) => void;
-  onRemoveItem: (id: string) => void;
+  onUpdateQuantity: (kind: string, id: string, delta: number) => void;
+  onRemoveItem: (kind: string, id: string) => void;
   onClearCart: () => void;
   isSignedIn: boolean;
   userName: string;
@@ -46,7 +47,7 @@ export default function CartDrawer({
 
   if (!isOpen) return null;
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.cookbook.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
   const promo = evaluatePromo(promoApplied ? promoCode : null);
   const appliedDiscount = subtotal * promo.rate;
   const total = Math.max(0, subtotal - appliedDiscount);
@@ -85,7 +86,7 @@ export default function CartDrawer({
       const createResponse = await authedFetch('/api/create-order', {
         method: 'POST',
         body: JSON.stringify({
-          items: cartItems.map((item) => ({ id: item.cookbook.id, quantity: item.quantity })),
+          items: cartItems.map((item) => ({ id: item.product.id, kind: item.product.kind, quantity: item.quantity })),
           promo: promoApplied ? promoCode.trim().toUpperCase() : undefined,
         }),
       });
@@ -103,7 +104,7 @@ export default function CartDrawer({
           currency: order.currency,
           order_id: order.order_id,
           name: 'Saketh Krishna',
-          description: `${cartItems.length} cookbook${cartItems.length > 1 ? 's' : ''}`,
+          description: `${cartItems.length} item${cartItems.length > 1 ? 's' : ''}`,
           prefill: { name: userName, email: userEmail },
           theme: { color: '#D2B48C' },
           handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
@@ -203,17 +204,21 @@ export default function CartDrawer({
               </div>
               <div>
                 <h3 className="font-serif text-xl text-white font-semibold mb-1">Payment Successful</h3>
-                <p className="font-sans text-xs text-[#a0a0a0]">Your cookbooks are ready to read.</p>
+                <p className="font-sans text-xs text-[#a0a0a0]">Your items are now in your library.</p>
               </div>
               <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3 text-left">
                 <span className="font-sans text-[9px] tracking-wider text-[#D2B48C] font-semibold uppercase">Your Items ({downloadLinkCount})</span>
                 {successItems.map((item) => (
-                  <div key={item.cookbook.id} className="flex justify-between items-center text-xs pb-2 border-b border-[#2a2a2a] last:border-none last:pb-0">
-                    <span className="text-white font-medium truncate max-w-[70%]">{item.cookbook.title}</span>
-                    <button onClick={() => { handleCloseSuccess(); onOpenLibrary(); }}
-                      className="flex items-center gap-1 text-[#D2B48C] hover:text-[#feddb3] font-bold text-[9px] tracking-wider uppercase">
-                      <BookOpen className="w-3 h-3" /> Read
-                    </button>
+                  <div key={`${item.product.kind}:${item.product.id}`} className="flex justify-between items-center text-xs pb-2 border-b border-[#2a2a2a] last:border-none last:pb-0">
+                    <span className="text-white font-medium truncate max-w-[70%]">{item.product.title}</span>
+                    {item.product.pdf_url ? (
+                      <button onClick={() => { handleCloseSuccess(); onOpenLibrary(); }}
+                        className="flex items-center gap-1 text-[#D2B48C] hover:text-[#feddb3] font-bold text-[9px] tracking-wider uppercase">
+                        <BookOpen className="w-3 h-3" /> Read
+                      </button>
+                    ) : (
+                      <span className="text-[#a0a0a0] font-bold text-[9px] tracking-wider uppercase">{kindLabel(item.product.kind)}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -226,7 +231,7 @@ export default function CartDrawer({
             <div className="text-center py-20 space-y-4">
               <div className="text-4xl text-[#2a2a2a]">∅</div>
               <p className="font-serif text-base text-white">Your cart is empty</p>
-              <p className="font-sans text-xs text-[#a0a0a0]">Add some cookbooks to get started.</p>
+              <p className="font-sans text-xs text-[#a0a0a0]">Add some cookbooks, plans, or sessions to get started.</p>
               <button onClick={onClose}
                 className="px-5 py-2.5 bg-[#1a1a1a] hover:bg-[#242424] text-white text-[10px] font-bold tracking-wider uppercase rounded-lg border border-[#2a2a2a] transition-all">
                 Browse Cookbooks
@@ -235,33 +240,36 @@ export default function CartDrawer({
           ) : (
             <div className="space-y-4">
               {cartItems.map((item) => (
-                <div key={item.cookbook.id}
+                <div key={`${item.product.kind}:${item.product.id}`}
                   className="flex items-center gap-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 hover:border-[#D2B48C]/20 transition-all">
                   <div className="w-16 h-16 rounded-lg bg-[#2a2a2a] overflow-hidden flex-shrink-0">
-                    <img src={item.cookbook.image} alt={item.cookbook.title} className="w-full h-full object-cover" />
+                    <img src={item.product.image} alt={item.product.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-grow min-w-0 space-y-2">
                     <div className="flex justify-between items-start gap-2">
-                      <h4 className="font-serif text-sm font-semibold text-white leading-tight line-clamp-2">{item.cookbook.title}</h4>
-                      <button onClick={() => onRemoveItem(item.cookbook.id)}
+                      <div className="min-w-0">
+                        <span className="text-[8px] font-sans font-bold tracking-wider text-[#D2B48C] uppercase">{kindLabel(item.product.kind)}</span>
+                        <h4 className="font-serif text-sm font-semibold text-white leading-tight line-clamp-2">{item.product.title}</h4>
+                      </div>
+                      <button onClick={() => onRemoveItem(item.product.kind, item.product.id)}
                         className="text-[#a0a0a0] hover:text-red-400 transition-colors flex-shrink-0">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center bg-[#0c0c0b] rounded-lg border border-[#2a2a2a]">
-                        <button onClick={() => onUpdateQuantity(item.cookbook.id, -1)}
+                        <button onClick={() => onUpdateQuantity(item.product.kind, item.product.id, -1)}
                           className="px-2 py-1 text-[#a0a0a0] hover:text-white transition-colors">
                           <Minus className="w-3 h-3" />
                         </button>
                         <span className="font-sans text-xs font-bold text-white px-2.5">{item.quantity}</span>
-                        <button onClick={() => onUpdateQuantity(item.cookbook.id, 1)}
+                        <button onClick={() => onUpdateQuantity(item.product.kind, item.product.id, 1)}
                           className="px-2 py-1 text-[#a0a0a0] hover:text-white transition-colors">
                           <Plus className="w-3 h-3" />
                         </button>
                       </div>
                       <span className="font-serif text-sm font-bold text-white">
-                        ₹{(item.cookbook.price * item.quantity).toLocaleString('en-IN')}
+                        ₹{(item.product.price * item.quantity).toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>

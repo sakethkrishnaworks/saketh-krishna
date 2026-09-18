@@ -10,10 +10,11 @@ import StoryView from './components/StoryView';
 import CartDrawer from './components/CartDrawer';
 import PurchaseLibraryView from './components/PurchaseLibraryView';
 import { ToastProvider, useToast } from './components/ToastProvider';
-import { ActiveTab, CartItem, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord, PurchasePayload } from './types';
+import { ActiveTab, CartItem, CoachingPlan, Consultation, Cookbook, Course, EventSession, Subscriber, DietPlan, PurchaseRecord, PurchasePayload, PurchasableProduct } from './types';
 import { supabase } from './lib/supabase';
 import { isAuthorizedAdminEmail } from './lib/admins';
 import { normalizeCookbook, normalizeEvent, normalizePurchase } from './lib/normalize';
+import { normalizeCartItems } from './lib/products';
 import { User } from '@supabase/supabase-js';
 
 function cartStorageKey(userId?: string | null): string {
@@ -36,6 +37,9 @@ function AppContent() {
   const [events, setEvents] = useState<EventSession[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [dietPlans, setDietPlans] = useState<DietPlan[]>([]);
+  const [coachingPlans, setCoachingPlans] = useState<CoachingPlan[]>([]);
+  const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -149,6 +153,33 @@ function AppContent() {
       setDietPlans((data ?? []) as DietPlan[]);
     };
 
+    const fetchCoachingPlans = async () => {
+      const { data, error } = await supabase.from('coaching_plans').select('*');
+      if (error) {
+        console.error('Coaching plans fetch failed:', error);
+        return;
+      }
+      setCoachingPlans((data ?? []) as CoachingPlan[]);
+    };
+
+    const fetchConsultations = async () => {
+      const { data, error } = await supabase.from('consultations').select('*');
+      if (error) {
+        console.error('Consultations fetch failed:', error);
+        return;
+      }
+      setConsultations((data ?? []) as Consultation[]);
+    };
+
+    const fetchCourses = async () => {
+      const { data, error } = await supabase.from('courses').select('*');
+      if (error) {
+        console.error('Courses fetch failed:', error);
+        return;
+      }
+      setCourses((data ?? []) as Course[]);
+    };
+
     const fetchSubscribers = async () => {
       const { data, error } = await supabase.from('subscribers').select('*');
       if (error) {
@@ -161,6 +192,9 @@ function AppContent() {
     void fetchCookbooks();
     void fetchEvents();
     void fetchDietPlans();
+    void fetchCoachingPlans();
+    void fetchConsultations();
+    void fetchCourses();
     setIsCatalogLoading(false);
     if (isAdmin) void fetchSubscribers();
 
@@ -218,7 +252,7 @@ function AppContent() {
     const key = cartStorageKey(user?.id);
     try {
       const savedCart = localStorage.getItem(key);
-      setCartItems(savedCart ? JSON.parse(savedCart) : []);
+      setCartItems(savedCart ? normalizeCartItems(JSON.parse(savedCart)) : []);
     } catch (e) {
       console.error('Failed to parse cart items:', e);
       setCartItems([]);
@@ -272,13 +306,15 @@ function AppContent() {
     localStorage.setItem(cartStorageKey(user?.id), JSON.stringify(updatedCart));
   };
 
-  const handleAddToCart = (cookbook: Cookbook) => {
+  const handleAddToCart = (product: PurchasableProduct) => {
     if (!user) {
       handleLogin();
       return;
     }
 
-    const existingIndex = cartItems.findIndex((item) => item.cookbook.id === cookbook.id);
+    const existingIndex = cartItems.findIndex(
+      (item) => item.product.kind === product.kind && item.product.id === product.id
+    );
     let updatedCart: CartItem[];
 
     if (existingIndex > -1) {
@@ -287,17 +323,17 @@ function AppContent() {
         index === existingIndex ? { ...item, quantity: item.quantity + 1 } : item
       );
     } else {
-      updatedCart = [...cartItems, { cookbook, quantity: 1 }];
+      updatedCart = [...cartItems, { product, quantity: 1 }];
     }
 
     handleSaveCart(updatedCart);
     setIsCartOpen(true);
   };
 
-  const handleUpdateQuantity = (id: string, delta: number) => {
+  const handleUpdateQuantity = (kind: string, id: string, delta: number) => {
     const updatedCart = cartItems
       .map((item) => {
-        if (item.cookbook.id === id) {
+        if (item.product.kind === kind && item.product.id === id) {
           return { ...item, quantity: item.quantity + delta };
         }
         return item;
@@ -307,8 +343,10 @@ function AppContent() {
     handleSaveCart(updatedCart);
   };
 
-  const handleRemoveItem = (id: string) => {
-    const updatedCart = cartItems.filter((item) => item.cookbook.id !== id);
+  const handleRemoveItem = (kind: string, id: string) => {
+    const updatedCart = cartItems.filter(
+      (item) => !(item.product.kind === kind && item.product.id === id)
+    );
     handleSaveCart(updatedCart);
   };
 
@@ -323,13 +361,14 @@ function AppContent() {
 
     const loaded = await refreshPurchases();
     const allRecorded = payload.items.every((item) => loaded?.some((purchase) =>
-      purchase.user_id === user.id && purchase.cookbook_id === item.id &&
+      purchase.user_id === user.id && (purchase.product_id ?? purchase.cookbook_id) === item.id &&
+      (purchase.product_kind ?? 'cookbook') === item.kind &&
       purchase.razorpay_order_id === payload.orderId && purchase.status === 'paid'
     ));
     if (!allRecorded) {
       throw new Error('Payment received, but your library has not loaded yet. Refresh or contact support; do not pay again.');
     }
-    toast('Payment confirmed. Your cookbooks are now in your library.', 'success');
+    toast('Payment confirmed. Your items are now in your library.', 'success');
   };
 
   const handleSubscribe = async (email: string) => {
@@ -468,8 +507,12 @@ function AppContent() {
           <CoachingView
             events={events}
             dietPlans={dietPlans}
+            coachingPlans={coachingPlans}
+            consultations={consultations}
+            courses={courses}
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
+            onAddToCart={handleAddToCart}
             userName={user?.user_metadata?.full_name || user?.email || ''}
             userEmail={user?.email || ''}
             userId={user?.id}
