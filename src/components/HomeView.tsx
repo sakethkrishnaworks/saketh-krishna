@@ -72,6 +72,22 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </button>
 
           <button
+            onClick={() => onNavigate('resources')}
+            className="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-white font-sans font-medium text-sm transition-all active:scale-[0.98] hover:border-[#D2B48C]/30 hover:text-white"
+          >
+            <span>Free Calculators & Lists</span>
+            <ArrowRight className="w-5 h-5 text-[#D2B48C]" />
+          </button>
+
+          <button
+            onClick={() => onNavigate('services')}
+            className="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-white font-sans font-medium text-sm transition-all active:scale-[0.98] hover:border-[#D2B48C]/30 hover:text-white"
+          >
+            <span>Services & Contact</span>
+            <ArrowRight className="w-5 h-5 text-[#D2B48C]" />
+          </button>
+
+          <button
             onClick={() => onNavigate('library')}
             className="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-white font-sans font-medium text-sm transition-all active:scale-[0.98] hover:border-[#D2B48C]/30 hover:text-white"
           >

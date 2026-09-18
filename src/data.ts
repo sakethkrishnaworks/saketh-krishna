@@ -1,5 +1,65 @@
-import { CoachingPlan, Consultation, Cookbook, Course, DietPlan, EventSession, FaqItem, Testimonial } from './types';
+import { CoachingPlan, Consultation, ContactInfo, Cookbook, Course, DietPlan, EventSession, FaqItem, Testimonial } from './types';
 import ReadImg from '../assets/read.jpg';
+
+export const CONTACT: ContactInfo = {
+  instagram: 'https://instagram.com/sakethkrishna',
+  instagramHandle: '@sakethkrishna',
+  email: 'sakethkrishna.work@gmail.com',
+  whatsapp: '',
+};
+
+export const RESTAURANT_CONSULTING = {
+  startingPrice: 10000,
+  title: 'Restaurant Consulting',
+  description: 'Healthy menu engineering for restaurants, cafes, and cloud kitchens — from recipe development to kitchen workflow and cost control.',
+  services: [
+    'Menu engineering',
+    'Recipe development',
+    'Healthy menu design',
+    'Kitchen workflow',
+    'Cost control',
+    'Staff training',
+  ],
+};
+
+export const RECIPE_DEVELOPMENT = {
+  priceMin: 3000,
+  priceMax: 15000,
+  title: 'Recipe Development',
+  description: 'Custom healthy recipes for brands, cafes, and products — tested, macro-calculated, and ready to launch.',
+  services: [
+    'Healthy recipes',
+    'Air fryer recipes',
+    'Cafe menus',
+    'Product recipes',
+  ],
+};
+
+export const GROCERY_LIST: string[] = [
+  'Paneer / tofu',
+  'Chicken breast / fish',
+  'Eggs',
+  'Soya chunks',
+  'Dal + rajma + chana',
+  'Oats / dalia',
+  'Brown rice / millets',
+  'Mixed vegetables',
+  'Fruits (banana, apple, papaya)',
+  'Curd / Greek yogurt',
+  'Nuts + peanuts',
+  'Whey protein (optional)',
+];
+
+export const MEAL_PREP_CHECKLIST: string[] = [
+  'Plan 7 days of lunches + dinners',
+  'Write the grocery list',
+  'Shop + wash produce',
+  'Batch cook proteins',
+  'Batch cook grains',
+  'Roast / steam vegetables',
+  'Portion into containers',
+  'Label with dates',
+];
 
 export const ASSET_IMAGES = {
   readStory: ReadImg.src,

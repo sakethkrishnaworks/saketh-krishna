@@ -1,4 +1,4 @@
-export type ActiveTab = 'home' | 'story' | 'cookbooks' | 'coaching' | 'library' | 'admin';
+export type ActiveTab = 'home' | 'story' | 'cookbooks' | 'coaching' | 'resources' | 'services' | 'library' | 'admin';
 
 export interface Subscriber {
   id: string;
@@ -152,4 +152,23 @@ export interface FaqItem {
   id: string;
   question: string;
   answer: string;
+}
+
+export interface ServiceInquiry {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  service: string;
+  budget?: string | null;
+  message?: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface ContactInfo {
+  instagram: string;
+  instagramHandle: string;
+  email: string;
+  whatsapp: string;
 }

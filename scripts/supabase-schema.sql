@@ -111,6 +111,20 @@ create table if not exists bookings (
 
 create index if not exists bookings_user_id_idx on bookings (user_id);
 
+-- Service inquiries (restaurant consulting, recipe development, custom work).
+create table if not exists inquiries (
+  id text primary key,
+  user_id text not null,
+  name text not null,
+  email text not null,
+  service text not null,
+  budget text,
+  message text,
+  status text not null default 'new',
+  created_at timestamptz not null default now()
+);
+create index if not exists inquiries_user_id_idx on inquiries (user_id);
+
 -- Purchasable 1:1 coaching tiers (1 / 3 / 6 months).
 create table if not exists coaching_plans (
   id text primary key,
@@ -169,6 +183,7 @@ $$;
 alter table cookbooks   enable row level security;
 alter table events      enable row level security;
 alter table dietplans   enable row level security;
+alter table inquiries   enable row level security;
 alter table coaching_plans enable row level security;
 alter table consultations  enable row level security;
 alter table courses        enable row level security;
@@ -275,6 +290,17 @@ grant select, insert, update, delete on table public.purchases to service_role;
 
 -- ---------- Bookings: users own their rows, admins read all ----------
 drop policy if exists "bookings_read"   on bookings;
+
+-- ---------- Inquiries: users file their own, admins read all ----------
+drop policy if exists "inquiries_insert" on inquiries;
+drop policy if exists "inquiries_read"   on inquiries;
+drop policy if exists "inquiries_manage" on inquiries;
+create policy "inquiries_insert" on inquiries for insert
+  with check (auth.uid()::text = user_id);
+create policy "inquiries_read" on inquiries for select
+  using (auth.uid()::text = user_id or public.is_admin());
+create policy "inquiries_manage" on inquiries for all
+  using (public.is_admin()) with check (public.is_admin());
 drop policy if exists "bookings_insert" on bookings;
 drop policy if exists "bookings_update" on bookings;
 create policy "bookings_read" on bookings for select

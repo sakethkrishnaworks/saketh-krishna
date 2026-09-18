@@ -5,6 +5,8 @@ import Header from './components/Header';
 import HomeView from './components/HomeView';
 import CookbooksView from './components/CookbooksView';
 import CoachingView from './components/CoachingView';
+import ResourcesView from './components/ResourcesView';
+import ServicesView from './components/ServicesView';
 import AdminDashboard from './components/AdminDashboard';
 import StoryView from './components/StoryView';
 import CartDrawer from './components/CartDrawer';
@@ -525,6 +527,18 @@ function AppContent() {
             isSignedIn={Boolean(user)}
             onLogin={handleLogin}
             onBrowseCookbooks={() => setActiveTab('cookbooks')}
+          />
+        )}
+        {activeTab === 'resources' && (
+          <ResourcesView />
+        )}
+        {activeTab === 'services' && (
+          <ServicesView
+            isSignedIn={Boolean(user)}
+            onLogin={handleLogin}
+            userId={user?.id}
+            userName={user?.user_metadata?.full_name || user?.email || ''}
+            userEmail={user?.email || ''}
           />
         )}
         {isAdminView &&

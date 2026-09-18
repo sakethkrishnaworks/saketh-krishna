@@ -34,6 +34,7 @@ import { ActiveTab, Cookbook, EventSession, Subscriber, DietPlan, PurchaseRecord
 import { supabase } from '../lib/supabase';
 import { getAuthToken } from '../lib/api';
 import { useToast } from './ToastProvider';
+import ServicesAdmin from './ServicesAdmin';
 import { User } from '@supabase/supabase-js';
 
 // Shared by the desktop sidebar and the mobile options grid so the two can
@@ -43,6 +44,7 @@ const ADMIN_NAV_ITEMS = [
   { id: 'cookbooks', label: 'Cookbooks', description: 'Catalog & PDF delivery', icon: ShoppingBag },
   { id: 'dietPlans', label: 'Coaching Plans', description: 'Diet plan catalog', icon: Star },
   { id: 'schedules', label: 'Service Catalog', description: 'Workshops & events', icon: Calendar },
+  { id: 'services', label: 'Services', description: 'Tiers, sessions & inquiries', icon: Briefcase },
   { id: 'subscribers', label: 'Subscribers', description: 'Mailing list ledger', icon: Mail },
   { id: 'settings', label: 'System Logic', description: 'Integration status', icon: SettingsIcon },
 ] as const;
@@ -59,7 +61,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ cookbooks, events, subscribers, dietPlans, purchases, onNavigate }: AdminDashboardProps) {
   const { toast, confirm } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'cookbooks' | 'schedules' | 'subscribers' | 'dietPlans' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'cookbooks' | 'schedules' | 'subscribers' | 'dietPlans' | 'services' | 'settings'>('overview');
   const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
   const [editingEvent, setEditingEvent] = useState<EventSession | null>(null);
   const [editingDietPlan, setEditingDietPlan] = useState<DietPlan | null>(null);
@@ -555,6 +557,7 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
               {activeTab === 'cookbooks' && 'Cookbook Catalog'}
               {activeTab === 'dietPlans' && 'Coaching Catalog'}
               {activeTab === 'schedules' && 'Service Distribution'}
+              {activeTab === 'services' && 'Services & Inquiries'}
               {activeTab === 'subscribers' && 'Marketing Ledger'}
               {activeTab === 'settings' && 'Global Configurations'}
             </h1>
@@ -1040,6 +1043,9 @@ export default function AdminDashboard({ cookbooks, events, subscribers, dietPla
         )}
 
         {/* --- Subscribers Ledger --- */}
+        {activeTab === 'services' && (
+          <ServicesAdmin />
+        )}
         {activeTab === 'subscribers' && (
           <div className="space-y-8">
             <div className="glass-panel overflow-hidden rounded-xl border-white/5">
