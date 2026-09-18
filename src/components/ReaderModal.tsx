@@ -30,6 +30,7 @@ export default function ReaderModal({ cookbookId, title, userLabel, onClose }: R
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const disposeRef = useRef<() => void>(() => {});
   const cancelRenderRef = useRef<() => void>(() => {});
@@ -337,7 +338,28 @@ export default function ReaderModal({ cookbookId, title, userLabel, onClose }: R
         {shielded && (
           <div className="reader-shield" aria-hidden="true" />
         )}
-        <div ref={viewportRef} className="reader-viewport" tabIndex={0} role="region" aria-label="Book page. Use left and right arrows to turn pages; plus and minus to zoom." aria-busy={loading || rendering}>
+        <div
+          ref={viewportRef}
+          className="reader-viewport"
+          tabIndex={0}
+          role="region"
+          aria-label="Book page. Use left and right arrows or swipe to turn pages; plus and minus to zoom."
+          aria-busy={loading || rendering}
+          onTouchStart={(event) => {
+            const touch = event.changedTouches[0];
+            touchStart.current = { x: touch.clientX, y: touch.clientY };
+          }}
+          onTouchEnd={(event) => {
+            const start = touchStart.current;
+            touchStart.current = null;
+            if (!start || !ready) return;
+            const touch = event.changedTouches[0];
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+            if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
+            changePage(dx > 0 ? -1 : 1);
+          }}
+        >
           <div ref={stageRef} className="reader-stage" />
         </div>
         {(!online || loading || rendering || error) && (
