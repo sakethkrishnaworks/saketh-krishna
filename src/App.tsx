@@ -239,13 +239,16 @@ function AppContent() {
     const { data, error } = await query;
     if (error) {
       console.error('Purchases fetch failed:', error);
-      return;
+      throw new Error('Could not load your library. Please refresh or contact support; do not pay again.');
     }
-    setPurchases((data ?? []).map(normalizePurchase));
+    const loaded = (data ?? []).map(normalizePurchase);
+    setPurchases(loaded);
+    return loaded;
   }, [user?.id, isAdmin]);
 
   useEffect(() => {
-    void refreshPurchases();
+    setPurchases([]);
+    void refreshPurchases().catch(() => toast('Could not load your library. Please refresh or contact support.', 'error'));
 
     if (!user?.id) return;
 
@@ -254,7 +257,7 @@ function AppContent() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'purchases' }, (payload) => {
         const row = payload.new as Record<string, unknown>;
         if (isAdmin || row.user_id === user.id) {
-          setPurchases((prev) => [normalizePurchase(row), ...prev]);
+          setPurchases((prev) => [normalizePurchase(row), ...prev.filter((purchase) => purchase.id !== row.id)]);
         }
       })
       .subscribe();
@@ -314,45 +317,18 @@ function AppContent() {
   };
 
   const handlePurchaseComplete = async (payload: PurchasePayload) => {
-    if (!user?.id) return;
-
-    // When the service role key is configured the server already wrote the
-    // authoritative rows; just re-read them.
-    if (payload.recorded) {
-      await refreshPurchases();
-      toast('Payment confirmed. Your cookbooks are now in your library.', 'success');
-      return;
+    if (!user?.id || !payload.recorded || payload.items.length === 0) {
+      throw new Error('Your purchase could not be confirmed in the library. Contact support; do not pay again.');
     }
 
-    const rows = payload.items.map((item) => ({
-      id: `pur_${user.id}_${item.id}_${payload.orderId}`,
-      user_id: user.id,
-      cookbook_id: item.id,
-      title: item.title,
-      image: item.image,
-      pdf_url: item.pdf_url,
-      price: item.price,
-      quantity: item.quantity,
-      amount_paid: payload.amount,
-      currency: payload.currency,
-      razorpay_order_id: payload.orderId,
-      razorpay_payment_id: payload.paymentId,
-      status: 'paid',
-      purchased_at: new Date().toISOString(),
-    }));
-
-    const { data, error } = await supabase
-      .from('purchases')
-      .upsert(rows, { onConflict: 'id' })
-      .select('*');
-
-    if (error) {
-      console.error('Failed to record purchase:', error);
-      toast('Payment succeeded but we could not save your library. Please contact support.', 'error');
-      return;
+    const loaded = await refreshPurchases();
+    const allRecorded = payload.items.every((item) => loaded?.some((purchase) =>
+      purchase.user_id === user.id && purchase.cookbook_id === item.id &&
+      purchase.razorpay_order_id === payload.orderId && purchase.status === 'paid'
+    ));
+    if (!allRecorded) {
+      throw new Error('Payment received, but your library has not loaded yet. Refresh or contact support; do not pay again.');
     }
-
-    setPurchases((prev) => [...(data ?? []).map(normalizePurchase), ...prev]);
     toast('Payment confirmed. Your cookbooks are now in your library.', 'success');
   };
 

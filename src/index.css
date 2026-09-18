@@ -190,3 +190,196 @@ button, a {
 .duration-300 { --sk-duration: 300ms; }
 .duration-500 { --sk-duration: 500ms; }
 .duration-1000 { --sk-duration: 1000ms; }
+
+.cookbook-reader {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #0c0c0b;
+  color: #e5e2e1;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cookbook-reader[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.cookbook-reader::backdrop {
+  background: #0c0c0b;
+}
+
+.reader-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  border-bottom: 1px solid #302b24;
+  background: #171614;
+}
+
+.reader-page-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #25231f;
+}
+
+.reader-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.reader-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  min-height: 100%;
+  width: max-content;
+  padding: 16px;
+}
+
+.reader-stage canvas {
+  display: block;
+  flex-shrink: 0;
+  max-width: none;
+  background: #f4ecdf;
+  box-shadow: 0 4px 30px #0006;
+}
+
+.reader-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  background: #25231f;
+  text-align: center;
+  font-size: 14px;
+  color: #e0d0b8;
+}
+
+.reader-message > div {
+  max-width: 380px;
+  margin: auto;
+}
+
+.reader-footer {
+  flex-shrink: 0;
+  padding: 10px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border-top: 1px solid #302b24;
+  background: #171614;
+}
+
+.reader-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 32px;
+  flex-wrap: wrap;
+}
+
+.reader-control-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.reader-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border: 1px solid #514637;
+  border-radius: 8px;
+  background: #27231d;
+  color: #d2b48c;
+  font-size: 14px;
+}
+
+.reader-button:hover:not(:disabled) {
+  background: #3a3023;
+  color: #feddb3;
+}
+
+.reader-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cookbook-reader :focus-visible {
+  outline: 2px solid #feddb3;
+  outline-offset: -3px;
+}
+
+.reader-counter, .reader-zoom {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.reader-counter {
+  min-width: 112px;
+}
+
+.reader-zoom {
+  min-width: 40px;
+}
+
+.reader-notice {
+  margin: 8px auto 0;
+  max-width: 640px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #b4aa9b;
+}
+
+@media (max-height: 450px) and (orientation: landscape) {
+  .reader-header {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .reader-footer {
+    padding-top: 4px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+  }
+
+  .reader-notice {
+    margin-top: 3px;
+  }
+}
+
+@media print {
+  body:has(.cookbook-reader[open]),
+  body:has(.cookbook-reader[open]) * {
+    visibility: hidden !important;
+  }
+
+  .cookbook-reader[open] {
+    display: none !important;
+  }
+}

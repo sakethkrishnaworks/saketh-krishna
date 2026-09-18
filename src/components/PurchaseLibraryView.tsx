@@ -1,7 +1,9 @@
 'use client';
 
-import { BookOpen, ArrowRight, ExternalLink } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { BookOpen, ArrowRight } from 'lucide-react';
 import { Cookbook, PurchaseRecord } from '../types';
+import ReaderModal from './ReaderModal';
 
 interface PurchaseLibraryViewProps {
   purchases: PurchaseRecord[];
@@ -18,6 +20,10 @@ export default function PurchaseLibraryView({
   onLogin,
   onBrowseCookbooks,
 }: PurchaseLibraryViewProps) {
+  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseRecord | null>(null);
+  const closeReader = useCallback(() => setSelectedPurchase(null), []);
+  const activePurchase = selectedPurchase && purchases.find((purchase) => purchase.id === selectedPurchase.id && purchase.user_id === selectedPurchase.user_id);
+
   if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-[#0c0c0b] pt-14 pb-10 px-5 safe-bottom">
@@ -72,10 +78,7 @@ export default function PurchaseLibraryView({
         ) : (
           <div className="flex flex-col gap-3.5">
             {purchases.map((purchase) => {
-              // Prefer the catalog's live PDF link, fall back to the snapshot
-              // taken at purchase time so deleted products still open.
               const latestCookbook = cookbooks.find((book) => book.id === purchase.cookbook_id);
-              const pdfUrl = latestCookbook?.pdfUrl ?? purchase.pdf_url ?? undefined;
 
               return (
                 <div
@@ -105,18 +108,13 @@ export default function PurchaseLibraryView({
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-2.5">
-                        {pdfUrl ? (
-                          <a
-                            href={pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
-                          >
-                            <ExternalLink className="w-3 h-3" /> Open PDF
-                          </a>
-                        ) : (
-                          <span className="text-[10px] font-sans text-[#a0a0a0] italic">PDF coming soon</span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPurchase(purchase)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#D2B48C] text-[#0c0c0b] rounded-lg font-sans text-[10px] font-bold tracking-wider uppercase hover:bg-[#feddb3] transition-all"
+                        >
+                          <BookOpen className="w-3 h-3" aria-hidden="true" /> Read Book
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -126,6 +124,15 @@ export default function PurchaseLibraryView({
           </div>
         )}
       </div>
+      {activePurchase && (
+        <ReaderModal
+          key={activePurchase.id}
+          cookbookId={activePurchase.cookbook_id}
+          title={activePurchase.title}
+          userLabel={activePurchase.user_id ? `Reader ${activePurchase.user_id.slice(0, 8)}` : 'Personal reader'}
+          onClose={closeReader}
+        />
+      )}
     </div>
   );
 }

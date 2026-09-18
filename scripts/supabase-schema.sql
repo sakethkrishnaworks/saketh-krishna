@@ -114,7 +114,7 @@ language sql
 security definer
 set search_path = public
 as $$
-  exists (select 1 from public.admins a where a.user_id = auth.uid())
+  select exists (select 1 from public.admins a where a.user_id = auth.uid()::text);
 $$;
 
 -- ============================================================================
@@ -170,11 +170,13 @@ drop policy if exists "admins_read"    on admins;
 drop policy if exists "admins_create"  on admins;
 drop policy if exists "admins_manage"  on admins;
 create policy "admins_read" on admins for select
-  using (auth.uid() = user_id);
+  using (auth.uid()::text = user_id);
 create policy "admins_create" on admins for insert
   with check (
-    auth.uid() = user_id
-    and lower(email) in (
+    auth.uid()::text = user_id
+    and lower(email) = lower(auth.jwt() ->> 'email')
+    and role = 'admin'
+    and lower(auth.jwt() ->> 'email') in (
       'sakethkrishna.work@gmail.com',
       'gokulkannan0205@gmail.com'
     )
@@ -187,20 +189,31 @@ drop policy if exists "purchases_read"   on purchases;
 drop policy if exists "purchases_insert" on purchases;
 drop policy if exists "purchases_update" on purchases;
 create policy "purchases_read" on purchases for select
-  using (auth.uid() = user_id or public.is_admin());
-create policy "purchases_insert" on purchases for insert
-  with check (auth.uid() = user_id);
-create policy "purchases_update" on purchases for update
-  using (public.is_admin()) with check (public.is_admin());
+  using (auth.uid()::text = user_id or public.is_admin());
+drop policy if exists "purchases_delete" on purchases;
+drop policy if exists "purchases_write" on purchases;
+drop policy if exists "purchases_manage" on purchases;
+drop policy if exists "purchases_deny_insert" on purchases;
+drop policy if exists "purchases_deny_update" on purchases;
+drop policy if exists "purchases_deny_delete" on purchases;
+create policy "purchases_deny_insert" on purchases as restrictive for insert to anon, authenticated
+  with check (false);
+create policy "purchases_deny_update" on purchases as restrictive for update to anon, authenticated
+  using (false) with check (false);
+create policy "purchases_deny_delete" on purchases as restrictive for delete to anon, authenticated
+  using (false);
+revoke insert, update, delete, truncate, references, trigger on table public.purchases from public, anon, authenticated;
+grant select on table public.purchases to authenticated;
+grant select, insert, update, delete on table public.purchases to service_role;
 
 -- ---------- Bookings: users own their rows, admins read all ----------
 drop policy if exists "bookings_read"   on bookings;
 drop policy if exists "bookings_insert" on bookings;
 drop policy if exists "bookings_update" on bookings;
 create policy "bookings_read" on bookings for select
-  using (auth.uid() = user_id or public.is_admin());
+  using (auth.uid()::text = user_id or public.is_admin());
 create policy "bookings_insert" on bookings for insert
-  with check (auth.uid() = user_id);
+  with check (auth.uid()::text = user_id);
 create policy "bookings_update" on bookings for update
   using (public.is_admin()) with check (public.is_admin());
 

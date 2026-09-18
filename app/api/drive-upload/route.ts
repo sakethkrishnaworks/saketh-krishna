@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../../src/lib/serverAuth';
-import { getDriveAccessToken, makeDriveFilePublic, uploadFileToDrive } from '../../../src/lib/driveUpload';
+import { uploadFileToDrive } from '../../../src/lib/driveUpload';
 
 export const runtime = 'nodejs';
 
@@ -36,8 +36,6 @@ export async function POST(request: NextRequest) {
       appProperties: { cookbookId },
     });
 
-    await makeDriveFilePublic(driveFile.id, await getDriveAccessToken());
-
     return NextResponse.json({
       id: driveFile.id,
       name: driveFile.name,
@@ -45,11 +43,11 @@ export async function POST(request: NextRequest) {
       previewUrl: `https://drive.google.com/file/d/${driveFile.id}/preview`,
       webViewLink: driveFile.webViewLink,
       webContentLink: driveFile.webContentLink,
+      warning: 'No public sharing permission was added. Inherited folder permissions still apply; use a restricted Drive folder for PDFs.',
     });
-  } catch (error) {
-    console.error('Google Drive upload failed:', error);
+  } catch {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Google Drive upload failed.' },
+      { error: 'Google Drive upload failed.' },
       { status: 500 }
     );
   }
