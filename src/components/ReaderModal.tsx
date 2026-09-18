@@ -18,6 +18,7 @@ interface ReaderModalProps {
 export default function ReaderModal({ cookbookId, title, userLabel, onClose }: ReaderModalProps) {
   const [mounted, setMounted] = useState(false);
   const [online, setOnline] = useState(true);
+  const [shielded, setShielded] = useState(false);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -38,8 +39,32 @@ export default function ReaderModal({ cookbookId, title, userLabel, onClose }: R
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    setOnline(navigator.onLine);
+    const checkVisibility = () => setShielded(document.visibilityState === 'hidden');
+    const raiseShield = () => setShielded(true);
+    const lowerShield = () => setShielded(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'PrintScreen') return;
+      event.preventDefault();
+      raiseShield();
+      try { navigator.clipboard?.writeText('').catch(() => {}); } catch { /* clipboard may be unavailable */ }
+    };
+
+    checkVisibility();
+    document.addEventListener('visibilitychange', checkVisibility);
+    window.addEventListener('blur', raiseShield);
+    window.addEventListener('focus', lowerShield);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('visibilitychange', checkVisibility);
+      window.removeEventListener('blur', raiseShield);
+      window.removeEventListener('focus', lowerShield);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, []);
+
+  useEffect(() => {
     setMounted(true);
+    setOnline(navigator.onLine);
     const goOffline = () => {
       disposeRef.current();
       stageRef.current?.replaceChildren();
@@ -309,6 +334,9 @@ export default function ReaderModal({ cookbookId, title, userLabel, onClose }: R
         </button>
       </header>
       <div className="reader-page-area">
+        {shielded && (
+          <div className="reader-shield" aria-hidden="true" />
+        )}
         <div ref={viewportRef} className="reader-viewport" tabIndex={0} role="region" aria-label="Book page. Use left and right arrows to turn pages; plus and minus to zoom." aria-busy={loading || rendering}>
           <div ref={stageRef} className="reader-stage" />
         </div>

@@ -373,6 +373,14 @@ button, a {
   }
 }
 
+.reader-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #ffffff;
+  pointer-events: none;
+}
+
 @media print {
   body:has(.cookbook-reader[open]),
   body:has(.cookbook-reader[open]) * {
